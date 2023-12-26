@@ -73,7 +73,8 @@ function save(destroy_when_done = false, save_without_sauce = false) {
 }
 
 async function save_as(destroy_when_done = false) {
-    const file = save_box(doc.file, "xb", { filters: [{ name: "XBin", extensions: ["xb"] }, { name: "ANSI Art", extensions: ["ans", "asc", "diz", "nfo", "txt"] }, { name: "Binary Text", extensions: ["bin"] }] });
+    const file = save_box(doc.file, "ans", { filters: [{ name: "ANSI Art", extensions: ["ans", "asc", "diz", "nfo", "txt"] }, { name: "XBin", extensions: ["xb"] }, { name: "Binary Text", extensions: ["bin"] }] });
+    // const file = save_box(doc.file, "ans", { filters: [{ name: "XBin", extensions: ["xb"] }, { name: "ANSI Art", extensions: ["ans", "asc", "diz", "nfo", "txt"] }, { name: "Binary Text", extensions: ["bin"] }] });
     if (!file) return;
 
     if (file === doc.file) {
@@ -87,7 +88,7 @@ async function save_as(destroy_when_done = false) {
 }
 
 async function save_without_sauce() {
-    const file = save_box(doc.file, "xb", { filters: [{ name: "XBin", extensions: ["xb"] }, { name: "ANSI Art", extensions: ["ans", "asc", "diz", "nfo", "txt"] }, { name: "Binary Text", extensions: ["bin"] }] });
+    const file = save_box(doc.file, "ans", { filters: [{ name: "ANSI Art", extensions: ["ans", "asc", "diz", "nfo", "txt"] }, { name: "XBin", extensions: ["xb"] }, { name: "Binary Text", extensions: ["bin"] }] });
     if (!file) return;
 
     if (file === doc.file) {
