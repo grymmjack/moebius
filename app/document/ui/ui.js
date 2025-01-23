@@ -4,7 +4,7 @@ const doc = require("../doc");
 const palette = require("../palette");
 const keyboard = require("../input/keyboard");
 const events = require("events");
-let interval, guide_columns, guide_rows;
+let interval, guide_columns, guide_rows, grid_columns;
 let canvas_zoom_toggled = false;
 
 function $(name) {
@@ -135,7 +135,8 @@ function toggle_drawinggrid(visible, columns) {
     $("guide").classList.add("hidden");
     send("uncheck_all_guides");
     if (visible) {
-        rescale_drawinggrid(columns);
+        grid_columns = columns;
+        rescale_drawinggrid();
         $("drawing_grid").classList.remove("hidden");
         if (columns == 1) {
             send("check_drawinggrid_1x1");
@@ -147,22 +148,22 @@ function toggle_drawinggrid(visible, columns) {
     }
 }
 
-function rescale_drawinggrid(columns) {
-    if (columns > 1) {
-        rows = Math.floor(columns / 2);
+function rescale_drawinggrid() {
+    if (grid_columns > 1) {
+        rows = Math.floor(grid_columns / 2);
     } else {
         rows = 1;
     }
     width = doc.render.font.width * doc.columns;
     height = doc.render.font.height * doc.rows;
     $("drawing_grid").innerHTML = '';
-    c = doc.render.font.width * columns;
+    c = doc.render.font.width * grid_columns;
     while (c < width) {
         var div = document.createElement('div');
         div.style.width = c + 'px';
         div.classList.add("column");
         $("drawing_grid").appendChild(div);
-        c += doc.render.font.width * columns;
+        c += doc.render.font.width * grid_columns;
     }
     r = doc.render.font.height * rows;
     while (r < height) {
@@ -182,6 +183,7 @@ on("toggle_petscii_guide", (event, visible) => toggle_petscii_guide(visible));
 on("toggle_drawinggrid", (event, visible, columns) => toggle_drawinggrid(visible, columns));
 
 doc.on("render", () => rescale_guide());
+doc.on("render", () => rescale_drawinggrid());
 
 class StatusBar {
     status_bar_info(columns, rows, code='') {
