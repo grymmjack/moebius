@@ -325,6 +325,13 @@ electron.ipcMain.on("show_controlcharacters", async (event, { id, method, destro
     event.returnValue = true;
 });
 
+electron.ipcMain.on("show_warning", async (event, { id, title, content }) => {
+    docs[id].modal = await window.new_modal("app/html/warning.html", { width: 480, height: 200, parent: docs[id].win, frame: false, ...get_centered_xy(id, 480, 200) });
+    if (darwin) add_darwin_window_menu_handler(id);
+    docs[id].modal.send("get_warning_data", { title, content })
+    event.returnValue = true;
+});
+
 if (darwin) {
     electron.app.on("will-finish-launching", (event) => {
         electron.app.on("open-file", (event, file) => {

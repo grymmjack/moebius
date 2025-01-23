@@ -95,7 +95,7 @@ async function save_without_sauce() {
         doc.edited = false;
         save(false, true);
     } else {
-        await doc.save_backup(file)
+        await doc.save_backup_without_sauce(file)
         await doc.open(file);
     }
 }

@@ -1124,6 +1124,10 @@ class TextModeDoc extends events.EventEmitter {
         await libtextmode.write_file(this, file);
     }
 
+    async save_backup_without_sauce(file) {
+        await libtextmode.write_file(this, file, { save_without_sauce: true });
+    }
+
     async export_as_utf8(file) {
         await libtextmode.write_file(this, file, { utf8: true });
     }
