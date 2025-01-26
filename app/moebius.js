@@ -104,6 +104,7 @@ async function open_file(file) {
     const win = await new_document_window();
     win.send("open_file", file);
 }
+electron.ipcMain.on("open_file", (event, {file}) => open_file(file));
 
 function open_in_new_window(win) {
     if (win && docs[win.id].open_in_current_window) {

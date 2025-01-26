@@ -570,8 +570,6 @@ function font_menu_template(win) {
             { label: "Export font\u2026", id: "export_font", click(item) { win.send("export_font"); } },
             { label: "Import font from image (GIF/PNG)\u2026", id: "import_font", click(item) { win.send("import_font"); } },
             { type: "separator" },
-            { label: "How to make yourn own character set", id: "customfont_tutorial", click(item) { electron.shell.openExternal("https://blog.glyphdrawing.club/moebius-ansi-ascii-art-editor-with-custom-font-support"); } },
-
         ]
     };
 }
