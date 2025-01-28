@@ -546,6 +546,7 @@ function view_menu_template(win) {
                 ]
             },
             { type: "separator" },
+            { label: "Open Reference In Window\u2026", id: "open_reference_window", click(item) { event.emit("open_reference_window", win); } },
             { label: "Open Reference Image\u2026", id: "open_reference_image", accelerator: "CmdorCtrl+Shift+O", click(item) { win.send("open_reference_image"); } },
             { label: "Toggle Reference Image", id: "toggle_reference_image", accelerator: "Ctrl+Tab", click(item) { win.send("toggle_reference_image", item.checked); }, enabled: false, type: "checkbox", checked: true },
             { label: "Clear", id: "clear_reference_image", click(item) { win.send("clear_reference_image"); }, enabled: false },
