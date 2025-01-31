@@ -4,7 +4,8 @@ const doc = require("../doc");
 const palette = require("../palette");
 const keyboard = require("../input/keyboard");
 const events = require("events");
-let interval, guide_columns, guide_rows;
+const chat = require("./chat")
+let interval, guide_columns, guide_rows, grid_columns;
 let canvas_zoom_toggled = false;
 
 function $(name) {
@@ -273,6 +274,7 @@ function canvas_zoom_toggle() {
     } else {
         $("canvas_container").classList.remove("canvas_zoom");
     }
+    chat.emit("update_frame");
     send("update_menu_checkboxes", { canvas_zoom_toggle: canvas_zoom_toggled });
 }
 
