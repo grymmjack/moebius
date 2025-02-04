@@ -4,7 +4,8 @@ const doc = require("../doc");
 const palette = require("../palette");
 const keyboard = require("../input/keyboard");
 const events = require("events");
-let interval, guide_columns, guide_rows;
+const chat = require("./chat")
+let interval, guide_columns, guide_rows, grid_columns;
 let canvas_zoom_toggled = false;
 
 function $(name) {
@@ -19,22 +20,118 @@ function set_var_px(name, value) {
     set_var(name, `${value}px`);
 }
 
-function open_reference_image() {
-    const files = open_box({ filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }] });
-    if (files) {
-        $("reference_image").style.backgroundImage = `url(${electron.nativeImage.createFromPath(files[0]).toDataURL()})`;
-        $("reference_image").style.opacity = 0.4;
-        send("enable_reference_image");
+function open_reference_image({ file }) {
+    if (!file) {
+        const files = open_box({ filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }] });
+        if (files.length === 0) return;
+        file = files[0]
     }
-}
 
-function toggle_reference_image(visible) {
-    $("reference_image").style.opacity = visible ? 0.4 : 0.0;
+    $("reference_image").src = electron.nativeImage.createFromPath(file).toDataURL();
+    $("reference_image").classList.remove("closed")
+    set_var("reference-control-opacity", 1.0);
+
+    reset_reference_image();
+    show_reference_image();
+
+    send("enable_reference_image");
 }
 
 function clear_reference_image() {
-    $("reference_image").style.removeProperty("background-image");
+    $("reference_image").src = "";
+    $("reference_image").classList.add("closed")
+    set_var("reference-control-opacity", 0.4);
+
+    $("reference_hide").classList.remove("brush_mode_selected");
+    $("reference_show").classList.remove("brush_mode_selected");
+
     send("disable_clear_reference_image");
+}
+
+function reset_reference_image() {
+    $("reference_image").style.top = "0";
+    $("reference_image").style.left = "0";
+
+    $("reference_opacity_value").value = 40;
+    $("reference_opacity_value").dispatchEvent(new Event('input', { bubbles: true }))
+
+    $('reference_size_value').value = doc.columns;
+    $("reference_size_value").dispatchEvent(new Event('input', { bubbles: true }))
+
+    $('reference_angle_value').value = 0;
+    $("reference_angle_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function toggle_reference_image(visible) {
+    if (visible) {
+        show_reference_image();
+    } else {
+        hide_reference_image();
+    }
+}
+
+function show_reference_image() {
+    if ($("reference_image").classList.contains("closed")) return;
+
+    $("reference_hide").classList.remove("brush_mode_selected");
+    $("reference_show").classList.add("brush_mode_selected");
+    $("reference_image").classList.remove("hidden");
+    send("show_reference_image");
+}
+
+function hide_reference_image() {
+    if ($("reference_image").classList.contains("closed")) return;
+
+    $("reference_hide").classList.add("brush_mode_selected");
+    $("reference_show").classList.remove("brush_mode_selected");
+    $("reference_image").classList.add("hidden");
+    send("hide_reference_image");
+}
+
+function increase_reference_image_opacity() {
+    $("reference_opacity_value").stepUp(1);
+    $("reference_opacity_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function decrease_reference_image_opacity() {
+    $("reference_opacity_value").stepDown(1);
+    $("reference_opacity_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function on_update_reference_opacity_value(event) {
+    if (Number.isNaN(event.target.value)) return;
+    $("reference_image").style.opacity = `${event.target.value / 100}`;
+}
+
+function increase_reference_image_size() {
+    $("reference_size_value").stepUp(1);
+    $("reference_size_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function decrease_reference_image_size() {
+    $("reference_size_value").stepDown(1);
+    $("reference_size_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function on_update_reference_size_value(event) {
+    if (Number.isNaN(event.target.value)) return;
+    let width = doc.use_9px_font ? event.target.value * 9 : event.target.value * 8;
+    $("reference_image").style.width = `${width}px`;
+}
+
+function increase_reference_image_angle() {
+    $("reference_angle_value").stepUp(1);
+    $("reference_angle_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function decrease_reference_image_angle() {
+    $("reference_angle_value").stepDown(1);
+    $("reference_angle_value").dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function on_update_reference_angle_value(event) {
+    if (Number.isNaN(event.target.value)) return;
+    $("reference_image").style.transform = `rotate(${event.target.value}deg)`;
 }
 
 on("open_reference_image", (event) => open_reference_image());
@@ -135,7 +232,8 @@ function toggle_drawinggrid(visible, columns) {
     $("guide").classList.add("hidden");
     send("uncheck_all_guides");
     if (visible) {
-        rescale_drawinggrid(columns);
+        grid_columns = columns;
+        rescale_drawinggrid();
         $("drawing_grid").classList.remove("hidden");
         if (columns == 1) {
             send("check_drawinggrid_1x1");
@@ -147,22 +245,22 @@ function toggle_drawinggrid(visible, columns) {
     }
 }
 
-function rescale_drawinggrid(columns) {
-    if (columns > 1) {
-        rows = Math.floor(columns / 2);
+function rescale_drawinggrid() {
+    if (grid_columns > 1) {
+        rows = Math.floor(grid_columns / 2);
     } else {
         rows = 1;
     }
     width = doc.render.font.width * doc.columns;
     height = doc.render.font.height * doc.rows;
     $("drawing_grid").innerHTML = '';
-    c = doc.render.font.width * columns;
+    c = doc.render.font.width * grid_columns;
     while (c < width) {
         var div = document.createElement('div');
         div.style.width = c + 'px';
         div.classList.add("column");
         $("drawing_grid").appendChild(div);
-        c += doc.render.font.width * columns;
+        c += doc.render.font.width * grid_columns;
     }
     r = doc.render.font.height * rows;
     while (r < height) {
@@ -182,6 +280,7 @@ on("toggle_petscii_guide", (event, visible) => toggle_petscii_guide(visible));
 on("toggle_drawinggrid", (event, visible, columns) => toggle_drawinggrid(visible, columns));
 
 doc.on("render", () => rescale_guide());
+doc.on("render", () => rescale_drawinggrid());
 
 class StatusBar {
     status_bar_info(columns, rows, code='') {
@@ -273,6 +372,7 @@ function canvas_zoom_toggle() {
     } else {
         $("canvas_container").classList.remove("canvas_zoom");
     }
+    chat.emit("update_frame");
     send("update_menu_checkboxes", { canvas_zoom_toggle: canvas_zoom_toggled });
 }
 
@@ -365,6 +465,7 @@ class Tools extends events.EventEmitter {
             case this.modes.ELLIPSE_FILLED: return $("ellipse_mode");
             case this.modes.FILL: return $("fill_mode");
             case this.modes.SAMPLE: return $("sample_mode");
+            case this.modes.REFERENCE: return $("reference_mode");
         }
     }
 
@@ -414,7 +515,19 @@ class Tools extends events.EventEmitter {
 
     constructor() {
         super();
-        this.modes = { SELECT: 0, BRUSH: 1, SHIFTER: 2, LINE: 3, RECTANGLE_OUTLINE: 4, RECTANGLE_FILLED: 5, ELLIPSE_OUTLINE: 6, ELLIPSE_FILLED: 7, FILL: 8, SAMPLE: 9 };
+        this.modes = {
+            SELECT: 0,
+            BRUSH: 1,
+            SHIFTER: 2,
+            LINE: 3,
+            RECTANGLE_OUTLINE: 4,
+            RECTANGLE_FILLED: 5,
+            ELLIPSE_OUTLINE: 6,
+            ELLIPSE_FILLED: 7,
+            FILL: 8,
+            SAMPLE: 9,
+            REFERENCE: 10
+        };
         on("change_to_select_mode", (event) => this.start(this.modes.SELECT));
         on("change_to_brush_mode", (event) => this.start(this.modes.BRUSH));
         on("change_to_shifter_mode", (event) => this.start(this.modes.SHIFTER));
@@ -442,6 +555,7 @@ class Tools extends events.EventEmitter {
             }, true);
             $("fill_mode").addEventListener("mousedown", (event) => this.start(this.modes.FILL), true);
             $("sample_mode").addEventListener("mousedown", (event) => this.start(this.modes.SAMPLE), true);
+            $("reference_mode").addEventListener("mousedown", (event) => this.start(this.modes.REFERENCE), true);
         });
     }
 }
@@ -603,6 +717,7 @@ class Toolbar extends events.EventEmitter {
         $("select_panel").classList.remove("hidden");
         $("brush_panel").classList.add("hidden");
         $("sample_panel").classList.add("hidden");
+        $("reference_panel").classList.add("hidden");
     }
 
     show_brush() {
@@ -611,6 +726,7 @@ class Toolbar extends events.EventEmitter {
         $("select_panel").classList.add("hidden");
         $("brush_panel").classList.remove("hidden");
         $("sample_panel").classList.add("hidden");
+        $("reference_panel").classList.add("hidden");
     }
 
     show_sample() {
@@ -619,6 +735,16 @@ class Toolbar extends events.EventEmitter {
         $("select_panel").classList.add("hidden");
         $("brush_panel").classList.add("hidden");
         $("sample_panel").classList.remove("hidden");
+        $("reference_panel").classList.add("hidden");
+    }
+
+    show_reference() {
+        send("show_reference_touchbar");
+        send("disable_brush_size_shortcuts");
+        $("select_panel").classList.add("hidden");
+        $("brush_panel").classList.add("hidden");
+        $("sample_panel").classList.add("hidden");
+        $("reference_panel").classList.remove("hidden");
     }
 
     fkey_clicker(i) {
@@ -758,12 +884,34 @@ class Toolbar extends events.EventEmitter {
                 this.change_mode(this.modes.COLORIZE);
             });
             this.change_mode(this.modes.HALF_BLOCK);
-        }, true);
+            $("reference_open").addEventListener("click", open_reference_image);
+            $("reference_show").addEventListener("click", show_reference_image);
+            $("reference_hide").addEventListener("click", hide_reference_image);
+            $("reference_reset").addEventListener("click", reset_reference_image);
+            $('reference_opacity_minus').addEventListener('click', decrease_reference_image_opacity);
+            $('reference_opacity_plus').addEventListener('click', increase_reference_image_opacity);
+            $('reference_opacity_value').addEventListener('input', on_update_reference_opacity_value);
+            $('reference_size_minus').addEventListener('click', decrease_reference_image_size);
+            $('reference_size_plus').addEventListener('click', increase_reference_image_size);
+            $('reference_size_value').addEventListener('input', on_update_reference_size_value);
+            $('reference_angle_minus').addEventListener('click', decrease_reference_image_angle);
+            $('reference_angle_plus').addEventListener('click', increase_reference_image_angle);
+            $('reference_angle_value').addEventListener('input', on_update_reference_angle_value);
+            }, true);
 
         keyboard.on("move_charlist", (direction) => this.move_charlist(direction));
-
-
     }
 }
 
-module.exports = { statusbar: new StatusBar(), tools: new Tools(), toolbar: new Toolbar(), zoom_in, zoom_out, actual_size, canvas_zoom_toggle };
+module.exports = {
+    statusbar: new StatusBar(),
+    tools: new Tools(),
+    toolbar: new Toolbar(),
+    zoom_in,
+    zoom_out,
+    actual_size,
+    canvas_zoom_toggle,
+    increase_reference_image_opacity,
+    decrease_reference_image_opacity,
+    open_reference_image
+};

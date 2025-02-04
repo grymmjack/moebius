@@ -1,6 +1,7 @@
 const doc = require("../doc");
 const chat = require("./chat");
 const cursor = require("../tools/cursor");
+
 let interval, render;
 let mouse_button = false;
 
@@ -44,10 +45,14 @@ function update_frame() {
     const viewport = $("viewport");
     const view_rect = viewport.getBoundingClientRect();
     const view_frame = $("view_frame");
+    const canvas_zoom_toggled = $("canvas_container").classList.contains("canvas_zoom");
+
     if (render) {
-        const scale_factor = render.width / 260;
+        let scale_factor = render.width / 260;
+        if (canvas_zoom_toggled) scale_factor *= 2;
+
         const width = Math.min(Math.ceil(view_rect.width / scale_factor), 260);
-        const height = Math.min(Math.ceil(view_rect.height / scale_factor), render.height / scale_factor);
+        const height = Math.min(Math.ceil(view_rect.height / scale_factor), render.height / (render.width / 260));
         const top = Math.ceil(viewport.scrollTop / scale_factor);
         const left = Math.ceil(viewport.scrollLeft / scale_factor);
         const preview = $("preview");
@@ -89,11 +94,13 @@ function add(new_render) {
 function update_with_mouse_pos(client_x, client_y) {
     const preview = $("preview");
     const viewport = $("viewport");
+    const canvas_zoom_toggled = $("canvas_container").classList.contains("canvas_zoom");
     const preview_rect = preview.getBoundingClientRect();
     const viewport_rect = viewport.getBoundingClientRect();
     const x = client_x - preview_rect.left - 20 + preview.scrollLeft;
     const y = client_y - preview_rect.top + preview.scrollTop;
-    const scale_factor = render.width / 260;
+    let scale_factor = render.width / 260;
+    if (canvas_zoom_toggled) scale_factor *= 2;
     const half_view_width = viewport_rect.width / scale_factor / 2;
     const half_view_height = viewport_rect.height / scale_factor / 2;
     viewport.scrollLeft = Math.floor((x - half_view_width) * scale_factor);

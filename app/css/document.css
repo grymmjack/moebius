@@ -5,6 +5,7 @@
     --preview-width: 300px;
     --charlist-width: 128px;
     --chat-height: 0px;
+    --reference-control-opacity: 0.4;
 }
 #sidebar {
     float: left;
@@ -77,6 +78,9 @@ body.dark .tool.selected {
 }
 #sample_mode {
     background-image: url("../img/sample.png");
+}
+#reference_mode {
+    background-image: url("../img/reference.png");
 }
 #sidebar, #toolbar {
     background-color: var(--mid-color);
@@ -160,6 +164,12 @@ body.dark #current_colors > canvas {
     overflow: auto;
     touch-action: none;
     cursor: -webkit-image-set(url("../img/crosshair.png") 1x, url("../img/crosshair_2x.png") 2x) 15 15, crosshair;
+}
+#viewport.reference-tool {
+    cursor: grab;
+}
+#viewport.reference-tool.grabbing {
+    cursor: grabbing;
 }
 #chat {
     width: calc(100% - var(--sidebar-width) -  var(--preview-width) - var(--charlist-width));
@@ -344,7 +354,8 @@ body.dark #preview {
 }
 #canvas_container.canvas_zoom {
     transform: scale(2);
-    transform-origin: top;
+    transform-origin: top left;
+    margin: 0;
 }
 .hidden {
     display: none !important;
@@ -427,12 +438,27 @@ body.dark #statusbar > div > div {
 #editing_layer > canvas.selection.operation {
     border-image-source: url("../img/selection_border_operation.gif");
 }
-#reference_image {
-    background-size: 100%;
-    background-repeat: no-repeat;
-    opacity: 0.4;
-    image-rendering: pixelated;
+#reference_layer {
+    position: relative;
 }
+#reference_image {
+    image-rendering: pixelated;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: auto;
+    object-fit: cover;
+}
+
+#reference_image.selected {
+    outline: 1px solid;
+    outline-style: dashed;
+}
+
+#reference_image.closed {
+    display: none;
+}
+
 #guide.hidden {
     display: none;
 }

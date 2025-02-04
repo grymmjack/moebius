@@ -24,8 +24,8 @@
             <div class = "tool" id = "rectangle_mode"></div>
             <div class = "tool" id = "ellipse_mode"></div>
             <div class = "tool" id = "fill_mode"></div>
-            <div class = "seperator"></div>
             <div class = "tool" id = "sample_mode"></div>
+            <div class = "tool" id = "reference_mode"></div>
         </div>
         <div id= "preview">
             <div id = "view_frame" class = "hidden"></div>
@@ -80,6 +80,26 @@
                     <canvas id = "sample_bg" width = "32" height = "32"></canvas>
                 </div>
             </div>
+            <div class = "panel hidden" id = "reference_panel">
+                <div>
+                    <div class = "button" id = "reference_open">Open...</div>
+                    <div class = "button reference-control" id = "reference_show">Show</div>
+                    <div class = "button reference-control" id = "reference_hide">Hide</div>
+                    <div class = "button reference-control" id = "reference_reset">Reset</div>
+                    <div class = "label">Opacity<br>(%):</div>
+                    <div class="button reference-control button-left" id = 'reference_opacity_minus'>-</div>
+                    <input class="number-input reference-control" type="number" id = 'reference_opacity_value' min="0" max="100" step="10" value="40">
+                    <div class="button reference-control button-right" id = 'reference_opacity_plus'>+</div>
+                    <div class = "label">Width<br>(ch):</div>
+                    <div class="button reference-control button-left" id = 'reference_size_minus'>-</div>
+                    <input class="number-input reference-control" type="number" id = 'reference_size_value' min="0" step="2" value="25">
+                    <div class="button reference-control button-right" id = 'reference_size_plus'>+</div>
+                    <div class = "label">Angle<br>(°):</div>
+                    <div class="button reference-control button-left" id = 'reference_angle_minus'>-</div>
+                    <input class="number-input reference-control" type="number" id = 'reference_angle_value' min="-360" step="15" max="360" value="0">
+                    <div class="button reference-control button-right" id = 'reference_angle_plus'>+</div>
+                </div>
+            </div>
         </div>
         <div id = "viewport">
             <div id = "canvas_container">
@@ -87,7 +107,9 @@
                 <div id = "blink_off_container"></div>
                 <div id = "blink_on_container"></div>
                 <div id = "editing_layer"></div>
-                <div id = "reference_image"></div>
+                <div id = "reference_layer">
+                  <img id = "reference_image" class="hidden closed" src="" alt="">
+                </div>
                 <div id = "guide" class = "hidden"></div>
                 <div id = "drawing_grid" style="opacity: 0.4;" class = "hidden"></div>
             </div>

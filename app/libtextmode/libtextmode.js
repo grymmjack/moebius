@@ -3,7 +3,7 @@ const { create_canvas, join_canvases } = require("./canvas");
 const { Ansi, encode_as_ansi } = require("./ansi");
 const { BinaryText, encode_as_bin } = require("./binary_text");
 const { XBin, encode_as_xbin } = require("./xbin");
-const { palette_4bit, has_base_palette } = require("./palette");
+const { palette_4bit } = require("./palette");
 const path = require("path");
 const { open_box } = require("../senders");
 const { current_date, resize_canvas, Textmode } = require("./textmode");
@@ -12,11 +12,6 @@ const fs = require("fs");
 const upng = require("upng-js");
 const { getSync } = require("@andreekeberg/imagedata");
 
-const document_types = {
-    ansi: { name: "ANSI Art", extensions: ["ans", "asc", "diz", "nfo", "txt"] },
-    xbin: { name: "XBin", extensions: ["xb"] },
-    bin: { name: "Binary Text", extensions: ["bin"] }
-}
 
 function read_bytes(bytes, file) {
     switch (path.extname(file).toLowerCase()) {
@@ -728,19 +723,13 @@ async function importFontFromImage() {
     }
 }
 
-async function load_custom_font() {
-    const file = open_box({
-        filters: [{ name: "Custom Font", extensions: ["f06", "f07", "f08", "f09", "f10", "f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31", "f32"] }]
-    });
-
-    if (file) {
-        return new Promise((resolve) => {
-            fs.readFile(file[0], (err, bytes) => {
-                if (err) throw (`Error: ${file} not found!`);
-                resolve({ bytes: bytes, filename: file[0] });
-            });
+async function load_custom_font(file) {
+    return new Promise((resolve) => {
+        fs.readFile(file, (err, bytes) => {
+            if (err) throw (`Error: ${file} not found!`);
+            resolve({ bytes: bytes, filename: file });
         });
-    }
+    });
 }
 
 

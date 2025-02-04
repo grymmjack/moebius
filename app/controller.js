@@ -16,6 +16,8 @@ require("./document/tools/ellipse_filled");
 require("./document/tools/ellipse_outline");
 require("./document/tools/fill");
 require("./document/tools/sample");
+require("./document/tools/reference");
+require("./document/input/drag_and_drop");
 
 doc.on("start_rendering", () => send_sync("show_rendering_modal"));
 doc.on("end_rendering", () => send("close_modal"));
@@ -95,7 +97,7 @@ async function save_without_sauce() {
         doc.edited = false;
         save(false, true);
     } else {
-        await doc.save_backup(file)
+        await doc.save_backup_without_sauce(file)
         await doc.open(file);
     }
 }
