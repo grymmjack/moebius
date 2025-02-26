@@ -378,8 +378,10 @@ function build_app_recent_files_menu() {
     const menu_items = recent_files.map(file => {
         return { 
             label: format_file_path_for_display(file), 
+            // Store the actual full path in a property that will be passed to the event handler
+            filepath: file,
             click(item) { 
-                event.emit("open_recent_file", { file }); 
+                event.emit("open_recent_file", { file: item.filepath }); 
             } 
         };
     });
@@ -416,9 +418,11 @@ function build_recent_files_menu(win) {
     
     const menu_items = recent_files.map(file => {
         return { 
-            label: format_file_path_for_display(file), 
+            label: format_file_path_for_display(file),
+            // Store the actual full path in a property that will be passed to the event handler
+            filepath: file,
             click(item) { 
-                event.emit("open_recent_file", { win, file }); 
+                event.emit("open_recent_file", { win, file: item.filepath }); 
             } 
         };
     });
