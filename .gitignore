@@ -5,3 +5,4 @@ node_modules
 server*.ans
 Thumbs.db
 moebius.code-workspace
+.idea

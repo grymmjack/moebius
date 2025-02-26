@@ -13,6 +13,7 @@ const frameless = darwin ? { frame: false, titleBarStyle: "hiddenInset" } : { fr
 let prevent_splash_screen_at_startup = false;
 let splash_screen;
 const discord = require("./discord");
+const {new_win} = require("./window");
 
 // This switch is required for <input type="color"> to utilize the OS color
 // picker, which is nicer than the one that's provided by chromium. At some
@@ -146,6 +147,7 @@ async function open_file(file) {
     const win = await new_document_window();
     win.send("open_file", file);
 }
+electron.ipcMain.on("open_file", (event, {file}) => open_file(file));
 
 function open_in_new_window(win) {
     if (win && docs[win.id].open_in_current_window) {
@@ -250,6 +252,33 @@ async function preferences() {
 }
 menu.on("preferences", preferences);
 electron.ipcMain.on("preferences", (event) => preferences());
+
+async function open_reference_window(win) {
+    const files = electron.dialog.showOpenDialogSync(win,
+        {
+            filters: [{
+                name: "Images",
+                extensions: ["png", "jpg", "jpeg"]
+            }],
+            properties: ["openFile", "multiSelections"]
+        });
+
+    if (!files) return;
+    for (const file of files) {
+        let reference = await new_win(
+            file,
+            {
+                width: 480,
+                height: 340,
+                parent: win,
+                maximizable: false,
+                minimizable: false,
+                fullscreenable: false,
+                resizable: true,
+            });
+    }
+}
+menu.on("open_reference_window", open_reference_window);
 
 async function show_new_connection() {
     const new_connection = await window.static("app/html/new_connection.html", { width: 480, height: 340 }, touchbar.new_connection);
@@ -431,6 +460,13 @@ electron.ipcMain.on("show_controlcharacters", async (event, { id, method, destro
     docs[id].modal = await window.new_modal("app/html/controlcharacters.html", { width: 640, height: 400, parent: docs[id].win, frame: false, ...get_centered_xy(id, 640, 400) });
     if (darwin) add_darwin_window_menu_handler(id);
     docs[id].modal.send("get_save_data", { method, destroy_when_done });
+    event.returnValue = true;
+});
+
+electron.ipcMain.on("show_warning", async (event, { id, title, content }) => {
+    docs[id].modal = await window.new_modal("app/html/warning.html", { width: 480, height: 200, parent: docs[id].win, frame: false, ...get_centered_xy(id, 480, 200) });
+    if (darwin) add_darwin_window_menu_handler(id);
+    docs[id].modal.send("get_warning_data", { title, content })
     event.returnValue = true;
 });
 

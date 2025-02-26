@@ -77,7 +77,7 @@ class XBin extends Textmode {
 }
 
 function encode_as_xbin(doc, save_without_sauce) {
-    let bin_bytes = encode_as_bin(doc);
+    let bin_bytes = encode_as_bin(doc, true, true);
     let header = [88, 66, 73, 78, 26, doc.columns & 255, doc.columns >> 8, doc.rows & 255, doc.rows >> 8, doc.font_height, 0];
     if (doc.palette) {
         header[10] += 1;

@@ -654,6 +654,7 @@ function view_menu_template(win) {
                 ]
             },
             { type: "separator" },
+            { label: "Open Reference In Window\u2026", id: "open_reference_window", click(item) { event.emit("open_reference_window", win); } },
             { label: "Open Reference Image\u2026", id: "open_reference_image", accelerator: "CmdorCtrl+Shift+O", click(item) { win.send("open_reference_image"); } },
             { label: "Toggle Reference Image", id: "toggle_reference_image", accelerator: "Ctrl+Tab", click(item) { win.send("toggle_reference_image", item.checked); }, enabled: false, type: "checkbox", checked: true },
             { label: "Clear", id: "clear_reference_image", click(item) { win.send("clear_reference_image"); }, enabled: false },
@@ -678,8 +679,6 @@ function font_menu_template(win) {
             { label: "Export font\u2026", id: "export_font", click(item) { win.send("export_font"); } },
             { label: "Import font from image (GIF/PNG)\u2026", id: "import_font", click(item) { win.send("import_font"); } },
             { type: "separator" },
-            { label: "How to make yourn own character set", id: "customfont_tutorial", click(item) { electron.shell.openExternal("https://blog.glyphdrawing.club/moebius-ansi-ascii-art-editor-with-custom-font-support"); } },
-
         ]
     };
 }
@@ -786,6 +785,14 @@ electron.ipcMain.on("enable_redo", (event, { id }) => {
 
 electron.ipcMain.on("disable_redo", (event, { id }) => {
     disable(id, "redo");
+});
+
+electron.ipcMain.on('show_reference_image', (event, { id }) => {
+   check(id, 'toggle_reference_image');
+});
+
+electron.ipcMain.on('hide_reference_image', (event, { id }) => {
+   uncheck(id, 'toggle_reference_image');
 });
 
 electron.ipcMain.on("enable_reference_image", (event, { id }) => {

@@ -1,5 +1,5 @@
 const libtextmode = require("../libtextmode/libtextmode");
-const { on, send, send_sync } = require("../senders");
+const { on, send, send_sync, open_box} = require("../senders");
 const events = require("events");
 const chat = require("./ui/chat");
 const path = require("path");
@@ -1124,6 +1124,10 @@ class TextModeDoc extends events.EventEmitter {
         await libtextmode.write_file(this, file);
     }
 
+    async save_backup_without_sauce(file) {
+        await libtextmode.write_file(this, file, { save_without_sauce: true });
+    }
+
     async export_as_utf8(file) {
         await libtextmode.write_file(this, file, { utf8: true });
     }
@@ -1154,8 +1158,25 @@ class TextModeDoc extends events.EventEmitter {
         this.start_rendering().then(() => this.emit("change_font", doc.font_name));
     }
 
-    async load_custom_font() {
-        const { bytes, filename } = await libtextmode.load_custom_font();
+    async load_custom_font({ file }) {
+        if (!file) {
+            const files = open_box({
+                filters: [{
+                    name: "Custom Font",
+                    extensions: [
+                        "f06", "f07", "f08", "f09", "f10", "f11", "f12", "f13",
+                        "f14", "f15","f16", "f17", "f18", "f19", "f20", "f21",
+                        "f22", "f23", "f24", "f25", "f26", "f27", "f28", "f29",
+                        "f30", "f31", "f32"
+                    ]
+                }]
+            });
+            if (files.length === 0) return;
+            file = files[0]
+        }
+
+        const { bytes, filename } = await libtextmode.load_custom_font(file);
+        console.log(bytes, filename)
         doc.font_name = path.parse(filename).name;
         doc.font_bytes = bytes;
         this.start_rendering().then(() => this.emit("change_font", doc.font_name));

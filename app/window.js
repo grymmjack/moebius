@@ -47,4 +47,4 @@ function close_static(name) {
 
 // electron.ipcMain.on("konami_code", (event, opts) => console.log("Konami!"));
 
-module.exports = {new_doc, new_modal, static, close_static};
+module.exports = {new_doc, new_modal, static, close_static, new_win};
