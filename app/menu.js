@@ -1071,6 +1071,16 @@ class MenuEvent extends events.EventEmitter {
         console.log("Setting application menu, rebuilding recent files list");
         // Rebuild application menu to include latest recent files
         if (darwin) {
+            // First check if there's an active document window - if so, use its menu
+            const win_id = this.get_focused_document_window_id();
+            if (win_id && menus[win_id]) {
+                console.log("Using focused document window menu");
+                electron.Menu.setApplicationMenu(menus[win_id]);
+                return;
+            }
+            
+            // Otherwise build a default application menu
+            console.log("Building default application menu");
             const prefs = require("./prefs");
             const recent_files = prefs.get("recent_files");
             console.log("Recent files in menu:", recent_files);
@@ -1107,6 +1117,23 @@ class MenuEvent extends events.EventEmitter {
         } else {
             electron.Menu.setApplicationMenu(application);
         }
+    }
+    
+    // Helper method to find a focused document window ID
+    get_focused_document_window_id() {
+        const BrowserWindow = electron.BrowserWindow;
+        const windows = BrowserWindow.getAllWindows();
+        const focused_win = BrowserWindow.getFocusedWindow();
+        
+        if (focused_win) {
+            for (const id of Object.keys(menus)) {
+                if (parseInt(id) === focused_win.id) {
+                    return id;
+                }
+            }
+        }
+        
+        return null;
     }
 
     chat_input_menu(win, debug) {
