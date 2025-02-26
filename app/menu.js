@@ -344,13 +344,72 @@ const help_menu_items = {
     ]
 };
 
+// Helper function to create simplified display name for the file path
+function getDisplayName(filepath) {
+    const path = require("path");
+    const filename = path.basename(filepath);
+    
+    // Check if we need to show disambiguation (if same filename exists in different locations)
+    const prefs = require("./prefs");
+    let recent_files = prefs.get("recent_files") || [];
+    
+    // Find files with the same name
+    const same_name_files = recent_files.filter(f => 
+        path.basename(f) === filename && f !== filepath
+    );
+    
+    // If other files with the same name exist, add parent directory
+    if (same_name_files.length > 0) {
+        const parent_dir = path.basename(path.dirname(filepath));
+        return `${filename} (${parent_dir})`;
+    }
+    
+    return filename;
+}
+
+// Function to build the recent files menu for the app menu (when no window is focused)
+function build_app_recent_files_menu() {
+    const prefs = require("./prefs");
+    let recent_files = prefs.get("recent_files") || [];
+    console.log("Building app recent files menu with files:", recent_files);
+    
+    if (!recent_files || recent_files.length === 0) {
+        return [{ label: "No recent files", enabled: false }];
+    }
+    
+    const menu_items = [];
+    
+    // Add each recent file to the menu
+    for (const file of recent_files) {
+        menu_items.push({
+            label: getDisplayName(file),
+            click() {
+                console.log("Clicked on recent file in app menu:", file);
+                // We need to use the stored file path, not the label
+                event.emit("open_recent_file", { file });
+            }
+        });
+    }
+    
+    // Add separator and clear option
+    menu_items.push({ type: "separator" });
+    menu_items.push({ 
+        label: "Clear Recent Files", 
+        click() {
+            event.emit("clear_recent_files");
+        }
+    });
+    
+    return menu_items;
+}
+
 const application = electron.Menu.buildFromTemplate([moebius_menu, {
     label: "File",
     submenu: [
         { label: "New", id: "new_document", accelerator: "Cmd+N", click(item) { event.emit("new_document"); } },
         { type: "separator" },
         { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
-        { role: "recentDocuments", submenu: [{ role: "clearRecentDocuments" }] },
+        { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
         { type: "separator" },
         { role: "close" },
     ]
@@ -361,36 +420,85 @@ const application = electron.Menu.buildFromTemplate([moebius_menu, {
     }, window_menu_items, help_menu_items
 ]);
 
+// Function to build the recent files menu for document windows
+function build_recent_files_menu(win) {
+    const prefs = require("./prefs");
+    let recent_files = prefs.get("recent_files") || [];
+    console.log("Building document window recent files menu with files:", recent_files);
+    
+    if (!recent_files || recent_files.length === 0) {
+        return [{ label: "No recent files", enabled: false }];
+    }
+    
+    const menu_items = [];
+    
+    // Add each recent file to the menu
+    for (const file of recent_files) {
+        menu_items.push({
+            label: getDisplayName(file),
+            click() {
+                console.log("Clicked on recent file in document menu:", file);
+                console.log("Window provided:", !!win);
+                // We need to use the stored file path, not the label
+                event.emit("open_recent_file", { win, file });
+            }
+        });
+    }
+    
+    // Add separator and clear option
+    menu_items.push({ type: "separator" });
+    menu_items.push({ 
+        label: "Clear Recent Files", 
+        click() {
+            event.emit("clear_recent_files");
+        }
+    });
+    
+    return menu_items;
+}
+
 function file_menu_template(win) {
+    const submenu = [
+        { label: "New", id: "new_document", accelerator: "CmdorCtrl+N", click(item) { event.emit("new_document"); } },
+        { label: "Duplicate as New Document", id: "duplicate", click(item) { win.send("duplicate"); } },
+        { type: "separator" },
+        { label: "Open\u2026", id: "open", accelerator: "CmdorCtrl+O", click(item) { event.emit("open", win); } },
+        { label: "Open in Current Window\u2026", id: "open_in_current_window", accelerator: "CmdorCtrl+Shift+O", click(item) { event.emit("open_in_current_window", win); } },
+        { label: "Open Recent", id: "open_recent", submenu: build_recent_files_menu(win) },
+    ];
+    
+    // Add settings menu item for non-macOS platforms
+    if (!darwin) {
+        submenu.push({ type: "separator" });
+        submenu.push({ label: "Settings", click(item) { event.emit("preferences"); } });
+    }
+    
+    // Add remaining menu items
+    submenu.push(
+        { type: "separator" },
+        { label: "Revert to Last Save", id: "revert_to_last_save", click(item) { win.send("revert_to_last_save"); }, enabled: false },
+        { label: "Show File in Folder", id: "show_file_in_folder", click(item) { win.send("show_file_in_folder"); }, enabled: false },
+        { type: "separator" },
+        { label: "Edit Sauce Info\u2026", id: "edit_sauce_info", accelerator: "CmdorCtrl+I", click(item) { win.send("get_sauce_info"); } },
+        { type: "separator" },
+        { label: "Save", id: "save", accelerator: "CmdorCtrl+S", click(item) { win.send("save"); } },
+        { label: "Save As\u2026", id: "save_as", accelerator: "CmdorCtrl+Shift+S", click(item) { win.send("save_as"); } },
+        { label: "Save Without Sauce Info\u2026", id: "save_without_sauce", click(item) { win.send("save_without_sauce"); } },
+        { type: "separator" },
+        { label: "Share Online", id: "share_online", click(item) { win.send("share_online"); } },
+        { label: "Share Online (XBIN)", id: "share_online_xbin", click(item) { win.send("share_online_xbin"); } },
+        { type: "separator" },
+        { label: "Export As PNG\u2026", id: "export_as_png", accelerator: "CmdorCtrl+Shift+E", click(item) { win.send("export_as_png"); } },
+        { label: "Export As Animated PNG\u2026", id: "export_as_apng", accelerator: "CmdorCtrl+Shift+A", click(item) { win.send("export_as_apng"); } },
+        { type: "separator" },
+        { label: "Export As UTF-8\u2026", id: "export_as_utf8", accelerator: "CmdorCtrl+Shift+U", click(item) { win.send("export_as_utf8"); } },
+        { type: "separator" },
+        { role: "close", accelerator: darwin ? "Cmd+W" : "Alt+F4" }
+    );
+    
     return {
         label: "&File",
-        submenu: [
-            { label: "New", id: "new_document", accelerator: "CmdorCtrl+N", click(item) { event.emit("new_document"); } },
-            { label: "Duplicate as New Document", id: "duplicate", click(item) { win.send("duplicate"); } },
-            { type: "separator" },
-            { label: "Open\u2026", id: "open", accelerator: "CmdorCtrl+O", click(item) { event.emit("open", win); } },
-            { label: "Open in Current Window\u2026", id: "open_in_current_window", accelerator: "CmdorCtrl+Shift+O", click(item) { event.emit("open_in_current_window", win); } },
-            darwin ? { role: "recentDocuments", submenu: [{ role: "clearRecentDocuments" }] } : ({ type: "separator" }, { label: "Settings", click(item) { event.emit("preferences"); } }),
-            { type: "separator" },
-            { label: "Revert to Last Save", id: "revert_to_last_save", click(item) { win.send("revert_to_last_save"); }, enabled: false },
-            { label: "Show File in Folder", id: "show_file_in_folder", click(item) { win.send("show_file_in_folder"); }, enabled: false },
-            { type: "separator" },
-            { label: "Edit Sauce Info\u2026", id: "edit_sauce_info", accelerator: "CmdorCtrl+I", click(item) { win.send("get_sauce_info"); } },
-            { type: "separator" },
-            { label: "Save", id: "save", accelerator: "CmdorCtrl+S", click(item) { win.send("save"); } },
-            { label: "Save As\u2026", id: "save_as", accelerator: "CmdorCtrl+Shift+S", click(item) { win.send("save_as"); } },
-            { label: "Save Without Sauce Info\u2026", id: "save_without_sauce", click(item) { win.send("save_without_sauce"); } },
-            { type: "separator" },
-            { label: "Share Online", id: "share_online", click(item) { win.send("share_online"); } },
-            { label: "Share Online (XBIN)", id: "share_online_xbin", click(item) { win.send("share_online_xbin"); } },
-            { type: "separator" },
-            { label: "Export As PNG\u2026", id: "export_as_png", accelerator: "CmdorCtrl+Shift+E", click(item) { win.send("export_as_png"); } },
-            { label: "Export As Animated PNG\u2026", id: "export_as_apng", accelerator: "CmdorCtrl+Shift+A", click(item) { win.send("export_as_apng"); } },
-            { type: "separator" },
-            { label: "Export As UTF-8\u2026", id: "export_as_utf8", accelerator: "CmdorCtrl+Shift+U", click(item) { win.send("export_as_utf8"); } },
-            { type: "separator" },
-            { role: "close", accelerator: darwin ? "Cmd+W" : "Alt+F4" }
-        ]
+        submenu: submenu
     };
 }
 
@@ -960,11 +1068,83 @@ electron.ipcMain.on("disable_brush_size_shortcuts", (event, { id }) => {
 
 class MenuEvent extends events.EventEmitter {
     set_application_menu() {
-        if (darwin) electron.Menu.setApplicationMenu(application);
+        console.log("Setting application menu, rebuilding recent files list");
+        // Rebuild application menu to include latest recent files
+        if (darwin) {
+            // First check if there's an active document window - if so, use its menu
+            const win_id = this.get_focused_document_window_id();
+            if (win_id && menus[win_id]) {
+                console.log("Using focused document window menu");
+                electron.Menu.setApplicationMenu(menus[win_id]);
+                return;
+            }
+            
+            // Otherwise build a default application menu
+            console.log("Building default application menu");
+            const prefs = require("./prefs");
+            const recent_files = prefs.get("recent_files");
+            console.log("Recent files in menu:", recent_files);
+            
+            const file_submenu = [
+                { label: "New", id: "new_document", accelerator: "Cmd+N", click(item) { event.emit("new_document"); } },
+                { type: "separator" },
+                { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
+                { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
+                { type: "separator" },
+                { role: "close" }
+            ];
+            
+            const network_submenu = [
+                { label: "Connect to Server…", accelerator: "Cmd+Alt+S", id: "connect_to_server", click(item) { event.emit("show_new_connection_window"); } }
+            ];
+            
+            const app_menu = electron.Menu.buildFromTemplate([
+                moebius_menu, 
+                {
+                    label: "File",
+                    submenu: file_submenu
+                }, 
+                bare_edit, 
+                {
+                    label: "Network", 
+                    submenu: network_submenu
+                }, 
+                window_menu_items, 
+                help_menu_items
+            ]);
+                
+            electron.Menu.setApplicationMenu(app_menu);
+        } else {
+            electron.Menu.setApplicationMenu(application);
+        }
+    }
+    
+    // Helper method to find a focused document window ID
+    get_focused_document_window_id() {
+        const BrowserWindow = electron.BrowserWindow;
+        const windows = BrowserWindow.getAllWindows();
+        const focused_win = BrowserWindow.getFocusedWindow();
+        
+        if (focused_win) {
+            for (const id of Object.keys(menus)) {
+                if (parseInt(id) === focused_win.id) {
+                    return id;
+                }
+            }
+        }
+        
+        return null;
     }
 
     chat_input_menu(win, debug) {
-        const menu = darwin ? electron.Menu.buildFromTemplate([moebius_menu, ...create_menu_template(win, true, debug), window_menu_items, help_menu_items]) : electron.Menu.buildFromTemplate([...create_menu_template(win, true, debug), help_menu_items]);
+        // When creating a chat menu, make sure to include all template items
+        const templates = create_menu_template(win, true, debug);
+        
+        // Build menu with complete templates
+        const menu = darwin 
+            ? electron.Menu.buildFromTemplate([moebius_menu, ...templates, window_menu_items, help_menu_items]) 
+            : electron.Menu.buildFromTemplate([...templates, help_menu_items]);
+            
         chat_menus[win.id] = menu;
         return menu;
     }
@@ -974,7 +1154,14 @@ class MenuEvent extends events.EventEmitter {
     }
 
     document_menu(win, debug) {
-        const menu = darwin ? electron.Menu.buildFromTemplate([moebius_menu, ...create_menu_template(win, false, debug), window_menu_items, help_menu_items]) : electron.Menu.buildFromTemplate([...create_menu_template(win, false, debug), help_menu_items]);
+        // When creating a document menu, make sure to include all template items
+        const templates = create_menu_template(win, false, debug);
+        
+        // Build menu with complete templates
+        const menu = darwin 
+            ? electron.Menu.buildFromTemplate([moebius_menu, ...templates, window_menu_items, help_menu_items]) 
+            : electron.Menu.buildFromTemplate([...templates, help_menu_items]);
+            
         menus[win.id] = menu;
         return menu;
     }
