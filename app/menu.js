@@ -1110,7 +1110,14 @@ class MenuEvent extends events.EventEmitter {
     }
 
     chat_input_menu(win, debug) {
-        const menu = darwin ? electron.Menu.buildFromTemplate([moebius_menu, ...create_menu_template(win, true, debug), window_menu_items, help_menu_items]) : electron.Menu.buildFromTemplate([...create_menu_template(win, true, debug), help_menu_items]);
+        // When creating a chat menu, make sure to include all template items
+        const templates = create_menu_template(win, true, debug);
+        
+        // Build menu with complete templates
+        const menu = darwin 
+            ? electron.Menu.buildFromTemplate([moebius_menu, ...templates, window_menu_items, help_menu_items]) 
+            : electron.Menu.buildFromTemplate([...templates, help_menu_items]);
+            
         chat_menus[win.id] = menu;
         return menu;
     }
@@ -1120,7 +1127,14 @@ class MenuEvent extends events.EventEmitter {
     }
 
     document_menu(win, debug) {
-        const menu = darwin ? electron.Menu.buildFromTemplate([moebius_menu, ...create_menu_template(win, false, debug), window_menu_items, help_menu_items]) : electron.Menu.buildFromTemplate([...create_menu_template(win, false, debug), help_menu_items]);
+        // When creating a document menu, make sure to include all template items
+        const templates = create_menu_template(win, false, debug);
+        
+        // Build menu with complete templates
+        const menu = darwin 
+            ? electron.Menu.buildFromTemplate([moebius_menu, ...templates, window_menu_items, help_menu_items]) 
+            : electron.Menu.buildFromTemplate([...templates, help_menu_items]);
+            
         menus[win.id] = menu;
         return menu;
     }
