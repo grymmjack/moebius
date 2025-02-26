@@ -344,6 +344,30 @@ const help_menu_items = {
     ]
 };
 
+// Helper function to format file paths for display in the menu
+function format_file_path_for_display(filepath) {
+    const path = require("path");
+    const filename = path.basename(filepath);
+    
+    // Check if we need to show disambiguation (if same filename exists in different locations)
+    const prefs = require("./prefs");
+    const recent_files = prefs.get("recent_files");
+    
+    // Find other files with the same name
+    const same_name_files = recent_files.filter(f => 
+        path.basename(f) === filename && f !== filepath
+    );
+    
+    if (same_name_files.length > 0) {
+        // Show parent directory for disambiguation
+        const parent_dir = path.basename(path.dirname(filepath));
+        return `${filename} (${parent_dir})`;
+    }
+    
+    // Just return the filename
+    return filename;
+}
+
 function build_app_recent_files_menu() {
     const prefs = require("./prefs");
     const recent_files = prefs.get("recent_files");
@@ -353,7 +377,7 @@ function build_app_recent_files_menu() {
     
     const menu_items = recent_files.map(file => {
         return { 
-            label: file, 
+            label: format_file_path_for_display(file), 
             click(item) { 
                 event.emit("open_recent_file", { file }); 
             } 
@@ -373,7 +397,6 @@ const application = electron.Menu.buildFromTemplate([moebius_menu, {
         { type: "separator" },
         { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
         { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
-        { role: "recentDocuments", submenu: [{ role: "clearRecentDocuments" }] },
         { type: "separator" },
         { role: "close" },
     ]
@@ -393,7 +416,7 @@ function build_recent_files_menu(win) {
     
     const menu_items = recent_files.map(file => {
         return { 
-            label: file, 
+            label: format_file_path_for_display(file), 
             click(item) { 
                 event.emit("open_recent_file", { win, file }); 
             } 
@@ -416,7 +439,8 @@ function file_menu_template(win) {
             { label: "Open\u2026", id: "open", accelerator: "CmdorCtrl+O", click(item) { event.emit("open", win); } },
             { label: "Open in Current Window\u2026", id: "open_in_current_window", accelerator: "CmdorCtrl+Shift+O", click(item) { event.emit("open_in_current_window", win); } },
             { label: "Open Recent", id: "open_recent", submenu: build_recent_files_menu(win) },
-            darwin ? { role: "recentDocuments", submenu: [{ role: "clearRecentDocuments" }] } : ({ type: "separator" }, { label: "Settings", click(item) { event.emit("preferences"); } }),
+            !darwin ? { type: "separator" } : null,
+            !darwin ? { label: "Settings", click(item) { event.emit("preferences"); } } : null,
             { type: "separator" },
             { label: "Revert to Last Save", id: "revert_to_last_save", click(item) { win.send("revert_to_last_save"); }, enabled: false },
             { label: "Show File in Folder", id: "show_file_in_folder", click(item) { win.send("show_file_in_folder"); }, enabled: false },
