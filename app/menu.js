@@ -344,50 +344,61 @@ const help_menu_items = {
     ]
 };
 
-// Helper function to format file paths for display in the menu
-function format_file_path_for_display(filepath) {
+// Helper function to create simplified display name for the file path
+function getDisplayName(filepath) {
     const path = require("path");
     const filename = path.basename(filepath);
     
     // Check if we need to show disambiguation (if same filename exists in different locations)
     const prefs = require("./prefs");
-    const recent_files = prefs.get("recent_files");
+    let recent_files = prefs.get("recent_files") || [];
     
-    // Find other files with the same name
+    // Find files with the same name
     const same_name_files = recent_files.filter(f => 
         path.basename(f) === filename && f !== filepath
     );
     
+    // If other files with the same name exist, add parent directory
     if (same_name_files.length > 0) {
-        // Show parent directory for disambiguation
         const parent_dir = path.basename(path.dirname(filepath));
         return `${filename} (${parent_dir})`;
     }
     
-    // Just return the filename
     return filename;
 }
 
+// Function to build the recent files menu for the app menu (when no window is focused)
 function build_app_recent_files_menu() {
     const prefs = require("./prefs");
-    const recent_files = prefs.get("recent_files");
+    let recent_files = prefs.get("recent_files") || [];
+    console.log("Building app recent files menu with files:", recent_files);
+    
     if (!recent_files || recent_files.length === 0) {
         return [{ label: "No recent files", enabled: false }];
     }
     
-    const menu_items = recent_files.map(file => {
-        return { 
-            label: format_file_path_for_display(file), 
-            // Store the actual full path in a property that will be passed to the event handler
-            filepath: file,
-            click(item) { 
-                event.emit("open_recent_file", { file: item.filepath }); 
-            } 
-        };
-    });
+    const menu_items = [];
     
+    // Add each recent file to the menu
+    for (const file of recent_files) {
+        menu_items.push({
+            label: getDisplayName(file),
+            click() {
+                console.log("Clicked on recent file in app menu:", file);
+                // We need to use the stored file path, not the label
+                event.emit("open_recent_file", { file });
+            }
+        });
+    }
+    
+    // Add separator and clear option
     menu_items.push({ type: "separator" });
-    menu_items.push({ label: "Clear Recent Files", click(item) { event.emit("clear_recent_files"); } });
+    menu_items.push({ 
+        label: "Clear Recent Files", 
+        click() {
+            event.emit("clear_recent_files");
+        }
+    });
     
     return menu_items;
 }
@@ -409,26 +420,39 @@ const application = electron.Menu.buildFromTemplate([moebius_menu, {
     }, window_menu_items, help_menu_items
 ]);
 
+// Function to build the recent files menu for document windows
 function build_recent_files_menu(win) {
     const prefs = require("./prefs");
-    const recent_files = prefs.get("recent_files");
+    let recent_files = prefs.get("recent_files") || [];
+    console.log("Building document window recent files menu with files:", recent_files);
+    
     if (!recent_files || recent_files.length === 0) {
         return [{ label: "No recent files", enabled: false }];
     }
     
-    const menu_items = recent_files.map(file => {
-        return { 
-            label: format_file_path_for_display(file),
-            // Store the actual full path in a property that will be passed to the event handler
-            filepath: file,
-            click(item) { 
-                event.emit("open_recent_file", { win, file: item.filepath }); 
-            } 
-        };
-    });
+    const menu_items = [];
     
+    // Add each recent file to the menu
+    for (const file of recent_files) {
+        menu_items.push({
+            label: getDisplayName(file),
+            click() {
+                console.log("Clicked on recent file in document menu:", file);
+                console.log("Window provided:", !!win);
+                // We need to use the stored file path, not the label
+                event.emit("open_recent_file", { win, file });
+            }
+        });
+    }
+    
+    // Add separator and clear option
     menu_items.push({ type: "separator" });
-    menu_items.push({ label: "Clear Recent Files", click(item) { event.emit("clear_recent_files"); } });
+    menu_items.push({ 
+        label: "Clear Recent Files", 
+        click() {
+            event.emit("clear_recent_files");
+        }
+    });
     
     return menu_items;
 }
@@ -1034,7 +1058,32 @@ electron.ipcMain.on("disable_brush_size_shortcuts", (event, { id }) => {
 
 class MenuEvent extends events.EventEmitter {
     set_application_menu() {
-        if (darwin) electron.Menu.setApplicationMenu(application);
+        console.log("Setting application menu, rebuilding recent files list");
+        // Rebuild application menu to include latest recent files
+        if (darwin) {
+            const prefs = require("./prefs");
+            const recent_files = prefs.get("recent_files");
+            console.log("Recent files in menu:", recent_files);
+            const app_menu = electron.Menu.buildFromTemplate([moebius_menu, {
+                label: "File",
+                submenu: [
+                    { label: "New", id: "new_document", accelerator: "Cmd+N", click(item) { event.emit("new_document"); } },
+                    { type: "separator" },
+                    { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
+                    { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
+                    { type: "separator" },
+                    { role: "close" },
+                ]
+            }, bare_edit, {
+                    label: "Network", submenu: [
+                        { label: "Connect to Server…", accelerator: "Cmd+Alt+S", id: "connect_to_server", click(item) { event.emit("show_new_connection_window"); } },
+                    ]
+                }, window_menu_items, help_menu_items]);
+                
+            electron.Menu.setApplicationMenu(app_menu);
+        } else {
+            electron.Menu.setApplicationMenu(application);
+        }
     }
 
     chat_input_menu(win, debug) {

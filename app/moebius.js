@@ -77,7 +77,13 @@ async function new_document({ columns, rows, title, author, group, date, palette
 
 // Function to add a file to the recent files list in preferences
 function add_to_recent_files(file) {
-    const recent_files = prefs.get("recent_files");
+    console.log("Adding to recent files:", file);
+    
+    // Make sure we have an array (might be undefined if it's the first time)
+    let recent_files = prefs.get("recent_files");
+    if (!Array.isArray(recent_files)) {
+        recent_files = [];
+    }
     
     // If file is already in the list, remove it
     const file_index = recent_files.indexOf(file);
@@ -92,6 +98,8 @@ function add_to_recent_files(file) {
     if (recent_files.length > 10) {
         recent_files.pop();
     }
+    
+    console.log("Recent files after update:", recent_files);
     
     // Save updated list to preferences
     prefs.set("recent_files", recent_files);
@@ -171,18 +179,31 @@ menu.on("open_in_current_window", (win) => {
 
 // Open a file from the recent files list
 menu.on("open_recent_file", ({ win, file }) => {
+    console.log("Opening recent file:", file);
+    console.log("Win provided:", !!win);
+    
     const fs = require("fs");
     // Check if file exists
     if (fs.existsSync(file)) {
+        console.log("File exists");
+        
         if (win && !check_if_file_is_already_open(file) && !open_in_new_window(win)) {
+            console.log("Opening in existing window");
             win.send("open_file", file);
             docs[win.id].file = file;
         } else {
+            console.log("Opening in new window");
             open_file(file);
         }
     } else {
+        console.log("File does not exist:", file);
+        
         // If file doesn't exist, show an error and remove it from the recent files list
-        const recent_files = prefs.get("recent_files");
+        let recent_files = prefs.get("recent_files");
+        if (!Array.isArray(recent_files)) {
+            recent_files = [];
+        }
+        
         const file_index = recent_files.indexOf(file);
         if (file_index !== -1) {
             recent_files.splice(file_index, 1);
