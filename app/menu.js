@@ -344,12 +344,35 @@ const help_menu_items = {
     ]
 };
 
+function build_app_recent_files_menu() {
+    const prefs = require("./prefs");
+    const recent_files = prefs.get("recent_files");
+    if (!recent_files || recent_files.length === 0) {
+        return [{ label: "No recent files", enabled: false }];
+    }
+    
+    const menu_items = recent_files.map(file => {
+        return { 
+            label: file, 
+            click(item) { 
+                event.emit("open_recent_file", { file }); 
+            } 
+        };
+    });
+    
+    menu_items.push({ type: "separator" });
+    menu_items.push({ label: "Clear Recent Files", click(item) { event.emit("clear_recent_files"); } });
+    
+    return menu_items;
+}
+
 const application = electron.Menu.buildFromTemplate([moebius_menu, {
     label: "File",
     submenu: [
         { label: "New", id: "new_document", accelerator: "Cmd+N", click(item) { event.emit("new_document"); } },
         { type: "separator" },
         { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
+        { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
         { role: "recentDocuments", submenu: [{ role: "clearRecentDocuments" }] },
         { type: "separator" },
         { role: "close" },
@@ -361,6 +384,28 @@ const application = electron.Menu.buildFromTemplate([moebius_menu, {
     }, window_menu_items, help_menu_items
 ]);
 
+function build_recent_files_menu(win) {
+    const prefs = require("./prefs");
+    const recent_files = prefs.get("recent_files");
+    if (!recent_files || recent_files.length === 0) {
+        return [{ label: "No recent files", enabled: false }];
+    }
+    
+    const menu_items = recent_files.map(file => {
+        return { 
+            label: file, 
+            click(item) { 
+                event.emit("open_recent_file", { win, file }); 
+            } 
+        };
+    });
+    
+    menu_items.push({ type: "separator" });
+    menu_items.push({ label: "Clear Recent Files", click(item) { event.emit("clear_recent_files"); } });
+    
+    return menu_items;
+}
+
 function file_menu_template(win) {
     return {
         label: "&File",
@@ -370,6 +415,7 @@ function file_menu_template(win) {
             { type: "separator" },
             { label: "Open\u2026", id: "open", accelerator: "CmdorCtrl+O", click(item) { event.emit("open", win); } },
             { label: "Open in Current Window\u2026", id: "open_in_current_window", accelerator: "CmdorCtrl+Shift+O", click(item) { event.emit("open_in_current_window", win); } },
+            { label: "Open Recent", id: "open_recent", submenu: build_recent_files_menu(win) },
             darwin ? { role: "recentDocuments", submenu: [{ role: "clearRecentDocuments" }] } : ({ type: "separator" }, { label: "Settings", click(item) { event.emit("preferences"); } }),
             { type: "separator" },
             { label: "Revert to Last Save", id: "revert_to_last_save", click(item) { win.send("revert_to_last_save"); }, enabled: false },

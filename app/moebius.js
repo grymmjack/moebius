@@ -75,6 +75,39 @@ async function new_document({ columns, rows, title, author, group, date, palette
     win.send("new_document", { columns, rows, title, author, group, date, palette, font_name, use_9px_font, ice_colors, comments, data, font_bytes });
 }
 
+// Function to add a file to the recent files list in preferences
+function add_to_recent_files(file) {
+    const recent_files = prefs.get("recent_files");
+    
+    // If file is already in the list, remove it
+    const file_index = recent_files.indexOf(file);
+    if (file_index !== -1) {
+        recent_files.splice(file_index, 1);
+    }
+    
+    // Add file to the beginning of the list
+    recent_files.unshift(file);
+    
+    // Keep only the most recent 10 files
+    if (recent_files.length > 10) {
+        recent_files.pop();
+    }
+    
+    // Save updated list to preferences
+    prefs.set("recent_files", recent_files);
+    
+    // Force menu rebuild for all windows
+    for (const id of Object.keys(docs)) {
+        docs[id].menu = menu.document_menu(docs[id].win, prefs.get("debug"));
+        if (!darwin) {
+            docs[id].win.setMenu(docs[id].menu);
+        }
+    }
+    
+    // Update application menu (mainly for macOS)
+    menu.set_application_menu();
+}
+
 function set_file(id, file) {
     docs[id].file = file;
     docs[id].win.setRepresentedFilename(file);
@@ -82,6 +115,7 @@ function set_file(id, file) {
     docs[id].win.setDocumentEdited(false);
     docs[id].edited = false;
     electron.app.addRecentDocument(file);
+    add_to_recent_files(file);
 }
 
 electron.ipcMain.on("set_file", (event, { id, file }) => set_file(id, file));
@@ -133,6 +167,60 @@ electron.ipcMain.on("open", (event) => open());
 menu.on("open_in_current_window", (win) => {
     docs[win.id].open_in_current_window = true;
     open(win);
+});
+
+// Open a file from the recent files list
+menu.on("open_recent_file", ({ win, file }) => {
+    const fs = require("fs");
+    // Check if file exists
+    if (fs.existsSync(file)) {
+        if (win && !check_if_file_is_already_open(file) && !open_in_new_window(win)) {
+            win.send("open_file", file);
+            docs[win.id].file = file;
+        } else {
+            open_file(file);
+        }
+    } else {
+        // If file doesn't exist, show an error and remove it from the recent files list
+        const recent_files = prefs.get("recent_files");
+        const file_index = recent_files.indexOf(file);
+        if (file_index !== -1) {
+            recent_files.splice(file_index, 1);
+            prefs.set("recent_files", recent_files);
+            
+            // Rebuild menus
+            for (const id of Object.keys(docs)) {
+                docs[id].menu = menu.document_menu(docs[id].win, prefs.get("debug"));
+                if (!darwin) {
+                    docs[id].win.setMenu(docs[id].menu);
+                }
+            }
+            menu.set_application_menu();
+        }
+        
+        // Show error dialog
+        electron.dialog.showMessageBoxSync({
+            type: "error",
+            title: "File Not Found",
+            message: `The file "${file}" could not be found.`,
+            detail: "It may have been moved, renamed, or deleted.",
+            buttons: ["OK"]
+        });
+    }
+});
+
+// Clear the recent files list
+menu.on("clear_recent_files", () => {
+    prefs.set("recent_files", []);
+    
+    // Rebuild menus
+    for (const id of Object.keys(docs)) {
+        docs[id].menu = menu.document_menu(docs[id].win, prefs.get("debug"));
+        if (!darwin) {
+            docs[id].win.setMenu(docs[id].menu);
+        }
+    }
+    menu.set_application_menu();
 });
 
 async function preferences() {
