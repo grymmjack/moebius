@@ -458,37 +458,47 @@ function build_recent_files_menu(win) {
 }
 
 function file_menu_template(win) {
+    const submenu = [
+        { label: "New", id: "new_document", accelerator: "CmdorCtrl+N", click(item) { event.emit("new_document"); } },
+        { label: "Duplicate as New Document", id: "duplicate", click(item) { win.send("duplicate"); } },
+        { type: "separator" },
+        { label: "Open\u2026", id: "open", accelerator: "CmdorCtrl+O", click(item) { event.emit("open", win); } },
+        { label: "Open in Current Window\u2026", id: "open_in_current_window", accelerator: "CmdorCtrl+Shift+O", click(item) { event.emit("open_in_current_window", win); } },
+        { label: "Open Recent", id: "open_recent", submenu: build_recent_files_menu(win) },
+    ];
+    
+    // Add settings menu item for non-macOS platforms
+    if (!darwin) {
+        submenu.push({ type: "separator" });
+        submenu.push({ label: "Settings", click(item) { event.emit("preferences"); } });
+    }
+    
+    // Add remaining menu items
+    submenu.push(
+        { type: "separator" },
+        { label: "Revert to Last Save", id: "revert_to_last_save", click(item) { win.send("revert_to_last_save"); }, enabled: false },
+        { label: "Show File in Folder", id: "show_file_in_folder", click(item) { win.send("show_file_in_folder"); }, enabled: false },
+        { type: "separator" },
+        { label: "Edit Sauce Info\u2026", id: "edit_sauce_info", accelerator: "CmdorCtrl+I", click(item) { win.send("get_sauce_info"); } },
+        { type: "separator" },
+        { label: "Save", id: "save", accelerator: "CmdorCtrl+S", click(item) { win.send("save"); } },
+        { label: "Save As\u2026", id: "save_as", accelerator: "CmdorCtrl+Shift+S", click(item) { win.send("save_as"); } },
+        { label: "Save Without Sauce Info\u2026", id: "save_without_sauce", click(item) { win.send("save_without_sauce"); } },
+        { type: "separator" },
+        { label: "Share Online", id: "share_online", click(item) { win.send("share_online"); } },
+        { label: "Share Online (XBIN)", id: "share_online_xbin", click(item) { win.send("share_online_xbin"); } },
+        { type: "separator" },
+        { label: "Export As PNG\u2026", id: "export_as_png", accelerator: "CmdorCtrl+Shift+E", click(item) { win.send("export_as_png"); } },
+        { label: "Export As Animated PNG\u2026", id: "export_as_apng", accelerator: "CmdorCtrl+Shift+A", click(item) { win.send("export_as_apng"); } },
+        { type: "separator" },
+        { label: "Export As UTF-8\u2026", id: "export_as_utf8", accelerator: "CmdorCtrl+Shift+U", click(item) { win.send("export_as_utf8"); } },
+        { type: "separator" },
+        { role: "close", accelerator: darwin ? "Cmd+W" : "Alt+F4" }
+    );
+    
     return {
         label: "&File",
-        submenu: [
-            { label: "New", id: "new_document", accelerator: "CmdorCtrl+N", click(item) { event.emit("new_document"); } },
-            { label: "Duplicate as New Document", id: "duplicate", click(item) { win.send("duplicate"); } },
-            { type: "separator" },
-            { label: "Open\u2026", id: "open", accelerator: "CmdorCtrl+O", click(item) { event.emit("open", win); } },
-            { label: "Open in Current Window\u2026", id: "open_in_current_window", accelerator: "CmdorCtrl+Shift+O", click(item) { event.emit("open_in_current_window", win); } },
-            { label: "Open Recent", id: "open_recent", submenu: build_recent_files_menu(win) },
-            !darwin ? { type: "separator" } : null,
-            !darwin ? { label: "Settings", click(item) { event.emit("preferences"); } } : null,
-            { type: "separator" },
-            { label: "Revert to Last Save", id: "revert_to_last_save", click(item) { win.send("revert_to_last_save"); }, enabled: false },
-            { label: "Show File in Folder", id: "show_file_in_folder", click(item) { win.send("show_file_in_folder"); }, enabled: false },
-            { type: "separator" },
-            { label: "Edit Sauce Info\u2026", id: "edit_sauce_info", accelerator: "CmdorCtrl+I", click(item) { win.send("get_sauce_info"); } },
-            { type: "separator" },
-            { label: "Save", id: "save", accelerator: "CmdorCtrl+S", click(item) { win.send("save"); } },
-            { label: "Save As\u2026", id: "save_as", accelerator: "CmdorCtrl+Shift+S", click(item) { win.send("save_as"); } },
-            { label: "Save Without Sauce Info\u2026", id: "save_without_sauce", click(item) { win.send("save_without_sauce"); } },
-            { type: "separator" },
-            { label: "Share Online", id: "share_online", click(item) { win.send("share_online"); } },
-            { label: "Share Online (XBIN)", id: "share_online_xbin", click(item) { win.send("share_online_xbin"); } },
-            { type: "separator" },
-            { label: "Export As PNG\u2026", id: "export_as_png", accelerator: "CmdorCtrl+Shift+E", click(item) { win.send("export_as_png"); } },
-            { label: "Export As Animated PNG\u2026", id: "export_as_apng", accelerator: "CmdorCtrl+Shift+A", click(item) { win.send("export_as_apng"); } },
-            { type: "separator" },
-            { label: "Export As UTF-8\u2026", id: "export_as_utf8", accelerator: "CmdorCtrl+Shift+U", click(item) { win.send("export_as_utf8"); } },
-            { type: "separator" },
-            { role: "close", accelerator: darwin ? "Cmd+W" : "Alt+F4" }
-        ]
+        submenu: submenu
     };
 }
 
@@ -1064,21 +1074,34 @@ class MenuEvent extends events.EventEmitter {
             const prefs = require("./prefs");
             const recent_files = prefs.get("recent_files");
             console.log("Recent files in menu:", recent_files);
-            const app_menu = electron.Menu.buildFromTemplate([moebius_menu, {
-                label: "File",
-                submenu: [
-                    { label: "New", id: "new_document", accelerator: "Cmd+N", click(item) { event.emit("new_document"); } },
-                    { type: "separator" },
-                    { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
-                    { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
-                    { type: "separator" },
-                    { role: "close" },
-                ]
-            }, bare_edit, {
-                    label: "Network", submenu: [
-                        { label: "Connect to Server…", accelerator: "Cmd+Alt+S", id: "connect_to_server", click(item) { event.emit("show_new_connection_window"); } },
-                    ]
-                }, window_menu_items, help_menu_items]);
+            
+            const file_submenu = [
+                { label: "New", id: "new_document", accelerator: "Cmd+N", click(item) { event.emit("new_document"); } },
+                { type: "separator" },
+                { label: "Open\u2026", id: "open", accelerator: "Cmd+O", click(item) { event.emit("open"); } },
+                { label: "Open Recent", id: "open_recent", submenu: build_app_recent_files_menu() },
+                { type: "separator" },
+                { role: "close" }
+            ];
+            
+            const network_submenu = [
+                { label: "Connect to Server…", accelerator: "Cmd+Alt+S", id: "connect_to_server", click(item) { event.emit("show_new_connection_window"); } }
+            ];
+            
+            const app_menu = electron.Menu.buildFromTemplate([
+                moebius_menu, 
+                {
+                    label: "File",
+                    submenu: file_submenu
+                }, 
+                bare_edit, 
+                {
+                    label: "Network", 
+                    submenu: network_submenu
+                }, 
+                window_menu_items, 
+                help_menu_items
+            ]);
                 
             electron.Menu.setApplicationMenu(app_menu);
         } else {
