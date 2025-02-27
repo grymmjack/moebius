@@ -1077,7 +1077,7 @@ class MenuEvent extends events.EventEmitter {
     set_application_menu() {
         console.log("Setting application menu, rebuilding recent files list");
         // Rebuild application menu to include latest recent files
-        if (darwin) {
+        // if (darwin) {
             // First check if there's an active document window - if so, use its menu
             const win_id = this.get_focused_document_window_id();
             if (win_id && menus[win_id]) {
@@ -1121,9 +1121,9 @@ class MenuEvent extends events.EventEmitter {
             ]);
                 
             electron.Menu.setApplicationMenu(app_menu);
-        } else {
+        /*} else {
             electron.Menu.setApplicationMenu(application);
-        }
+        }*/
     }
     
     // Helper method to find a focused document window ID
@@ -1150,7 +1150,7 @@ class MenuEvent extends events.EventEmitter {
         // Build menu with complete templates
         const menu = darwin 
             ? electron.Menu.buildFromTemplate([moebius_menu, ...templates, window_menu_items, help_menu_items]) 
-            : electron.Menu.buildFromTemplate([...templates, help_menu_items]);
+            : electron.Menu.buildFromTemplate([...templates, window_menu_items, help_menu_items]);
             
         chat_menus[win.id] = menu;
         return menu;
@@ -1167,7 +1167,7 @@ class MenuEvent extends events.EventEmitter {
         // Build menu with complete templates
         const menu = darwin 
             ? electron.Menu.buildFromTemplate([moebius_menu, ...templates, window_menu_items, help_menu_items]) 
-            : electron.Menu.buildFromTemplate([...templates, help_menu_items]);
+            : electron.Menu.buildFromTemplate([...templates, window_menu_items, help_menu_items]);
             
         menus[win.id] = menu;
         return menu;
