@@ -38,6 +38,16 @@ class KeyboardEvent extends events.EventEmitter {
                 return;
         }
         switch (event.key) {
+            case "'":
+            case "Quote":
+                this.emit("toggle_grid");
+                event.preventDefault();
+                return;
+            case ";":
+            case "Semicolon":
+                this.emit("toggle_guide");
+                event.preventDefault();
+                return;
             case "c": case "C":
                 this.emit("copy");
                 return;
@@ -140,8 +150,7 @@ class KeyboardEvent extends events.EventEmitter {
                 this.emit("move_charlist", "down");
                 event.preventDefault();
                 return;
-            }
-            
+        }
     }
 
     meta_key(event) {
