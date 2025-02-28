@@ -20,9 +20,9 @@ require("./document/tools/reference");
 require("./document/input/drag_and_drop");
 
 doc.on("start_rendering", () => send_sync("show_rendering_modal"));
-doc.on("end_rendering", () => send("close_modal"));
+doc.on("end_rendering", () => send("close_modal", {}));
 doc.on("connecting", () => send_sync("show_connecting_modal"));
-doc.on("connected", () => send("close_modal"));
+doc.on("connected", () => send("close_modal", {}));
 doc.on("unable_to_connect", () => {
     const choice = msg_box("Connect to Server", "Cannot connect to Server", { buttons: ["Retry", "Cancel"], defaultId: 0, cancelId: 1 });
     if (choice == 1) send("destroy");

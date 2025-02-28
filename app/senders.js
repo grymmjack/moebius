@@ -6,16 +6,34 @@ function on(channel, msg) {
     return electron.ipcRenderer.on(channel, msg);
 }
 
-function send_sync(channel, opts) {
-    return electron.ipcRenderer.sendSync(channel, {id: electron.remote.getCurrentWindow().id, ...opts});
+function getWindowId() {
+    try {
+        const currentWindow = electron.remote.getCurrentWindow();
+        if (currentWindow) {
+            const parentWindow = currentWindow.getParentWindow();
+            if (parentWindow) {
+                return parentWindow.id;
+            }
+            return currentWindow.id;
+        }
+    } catch (err) {
+        console.error('Error getting window ID:', err);
+    }
+    return null;
 }
 
-function send(channel, opts) {
-    electron.ipcRenderer.send(channel, {id: electron.remote.getCurrentWindow().id, ...opts});
+function send_sync(channel, opts) {
+    const id = getWindowId();
+    return electron.ipcRenderer.sendSync(channel, {id, ...opts});
+}
+
+function send(channel, opts = {}) {
+    const id = getWindowId();
+    electron.ipcRenderer.send(channel, {id, ...opts});
 }
 
 function msg_box(message, detail, opts = {}) {
-    send("close_modal");
+    send("close_modal", {});
     return electron.remote.dialog.showMessageBoxSync(win, {message, detail, ...opts});
 }
 

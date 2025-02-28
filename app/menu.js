@@ -368,30 +368,18 @@ function getDisplayName(filepath) {
 }
 
 // Function to build the recent files menu for the app menu (when no window is focused)
-function build_app_recent_files_menu() {
-    const prefs = require("./prefs");
-    let recent_files = prefs.get("recent_files") || [];
-    console.log("Building app recent files menu with files:", recent_files);
-    
-    if (!recent_files || recent_files.length === 0) {
+function build_app_recent_files_menu(recent_files) {
+    if (!Array.isArray(recent_files) || recent_files.length === 0) {
         return [{ label: "No recent files", enabled: false }];
     }
     
-    const menu_items = [];
+    const menu_items = recent_files.map((file) => ({
+        label: getDisplayName(file),
+        click() {
+            event.emit("open_recent_file", { file });
+        }
+    }));
     
-    // Add each recent file to the menu
-    for (const file of recent_files) {
-        menu_items.push({
-            label: getDisplayName(file),
-            click() {
-                console.log("Clicked on recent file in app menu:", file);
-                // We need to use the stored file path, not the label
-                event.emit("open_recent_file", { file });
-            }
-        });
-    }
-    
-    // Add separator and clear option
     menu_items.push({ type: "separator" });
     menu_items.push({ 
         label: "Clear Recent Files", 

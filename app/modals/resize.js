@@ -10,7 +10,7 @@ function send(channel, opts) {
 
 function send_parent(channel, opts) {
     electron.remote.getCurrentWindow().getParentWindow().send(channel, opts);
-    send("close_modal");
+    send("close_modal", {});
 }
 
 function ok() {
@@ -20,7 +20,7 @@ function ok() {
 }
 
 function cancel() {
-    send("close_modal");
+    send("close_modal", {});
 }
 
 document.addEventListener("DOMContentLoaded", (event) => {
@@ -28,12 +28,21 @@ document.addEventListener("DOMContentLoaded", (event) => {
     document.getElementById("cancel").addEventListener("click", event => cancel(), true);
 }, true);
 
-document.addEventListener("keydown", (event) => {
+function handleKeyDown(event) {
     if (event.code == "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
         ok();
     } else if (event.code == "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
         cancel();
     }
+}
+
+document.addEventListener("keydown", handleKeyDown, true);
+window.addEventListener("unload", () => {
+    document.removeEventListener("keydown", handleKeyDown, true);
 }, true);
 
 electron.ipcRenderer.on("set_canvas_size", (event, {columns, rows}) => {

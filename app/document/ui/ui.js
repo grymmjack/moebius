@@ -20,11 +20,12 @@ function set_var_px(name, value) {
     set_var(name, `${value}px`);
 }
 
-function open_reference_image({ file }) {
+function open_reference_image(params) {
+    let file = params?.file;
     if (!file) {
         const files = open_box({ filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }] });
-        if (files.length === 0) return;
-        file = files[0]
+        if (!files || files.length === 0) return;
+        file = files[0];
     }
 
     $("reference_image").src = electron.nativeImage.createFromPath(file).toDataURL();

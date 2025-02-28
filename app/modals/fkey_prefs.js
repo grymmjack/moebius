@@ -17,7 +17,7 @@ function key_down(event) {
         case "Escape":
         case "Enter":
         case "NumpadEnter":
-            send("close_modal");
+            send("close_modal", {});
             break;
     }
 }
@@ -46,7 +46,7 @@ electron.ipcRenderer.on("fkey_prefs", async (event, {num, fkey_index, current, b
         const code = Math.floor(event.clientY / font.height / 2) * 16 + Math.floor(event.clientX / 8 / 2);
         send("set_fkey", {num, fkey_index, code});
         update_selector(code);
-        setTimeout(() => send("close_modal"), 200);
+        setTimeout(() => send("close_modal", {}), 200);
     }, true);
     const ctx = canvas.getContext("2d");
     for (let y = 0, code = 0; y < 16; y++) {
@@ -57,4 +57,4 @@ electron.ipcRenderer.on("fkey_prefs", async (event, {num, fkey_index, current, b
     update_selector(current);
 });
 
-on("cancel", (event) => send("close_modal"));
+on("cancel", (event) => send("close_modal", {}));

@@ -6,7 +6,7 @@ function send(channel, opts) {
 
 function send_parent(channel, opts) {
     electron.remote.getCurrentWindow().getParentWindow().send(channel, opts);
-    send("close_modal");
+    send("close_modal", {});
 }
 
 function fill_string(text, length) {
@@ -29,7 +29,7 @@ function ok() {
 }
 
 function cancel() {
-    send("close_modal");
+    send("close_modal", {});
 }
 
 function title_input(event) {
@@ -78,13 +78,22 @@ document.addEventListener("DOMContentLoaded", (event) => {
     document.getElementById("comments").addEventListener("input", event => comments_input(event), true);
 }, true);
 
-document.addEventListener("keydown", (event) => {
+function handleKeyDown(event) {
     const comments = document.getElementById("comments");
     if ((event.code == "Enter" && event.metaKey) || (event.code == "Enter" && document.activeElement != comments)) {
+        event.preventDefault();
+        event.stopPropagation();
         ok();
     } else if (event.code == "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
         cancel();
     }
+}
+
+document.addEventListener("keydown", handleKeyDown, true);
+window.addEventListener("unload", () => {
+    document.removeEventListener("keydown", handleKeyDown, true);
 }, true);
 
 function strip_trailing_spaces(text) {
