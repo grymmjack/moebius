@@ -20,12 +20,13 @@
   "devDependencies": {
     "browserify": "^16.5.1",
     "electron": "^12.0.2",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^24.13.3",
     "express": "^4.17.1"
   },
   "dependencies": {
     "@andreekeberg/imagedata": "^1.0.2",
-    "@electron/build-tools": "^1.1.0",
+    "@electron/build-tools": "^1.2.0",
+    "@types/vscode": "^1.97.0",
     "discord-rpc": "^3.1.1",
     "electron-debug": "^3.2.0",
     "electron-is-dev": "^1.2.0",
@@ -37,6 +38,6 @@
     "react-dom": "^16.13.1",
     "upng-js": "^2.1.0",
     "ws": "^7.4.6",
-    "yarn": "^1.22.21"
+    "yarn": "^1.22.22"
   }
 }
