@@ -341,10 +341,66 @@ function has_documents_open() {
     return Object.keys(docs).length > 0;
 }
 
+// Helper function to safely create and show modals
+async function createSafeModal(id, modalConfig) {
+    if (!docs[id]) {
+        console.error('Document not found:', id);
+        return null;
+    }
+
+    // If there's an existing modal, close it properly first
+    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
+        const currentModal = docs[id].modal;
+        docs[id].modal = null; // Clear the reference first
+        currentModal.close();
+        // Wait a brief moment to ensure cleanup
+        await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    
+    try {
+        // Create the new modal with the specified dimensions
+        docs[id].modal = await window.new_modal(
+            modalConfig.htmlPath,
+            {
+                width: modalConfig.width,
+                height: modalConfig.height,
+                parent: docs[id].win,
+                frame: false,
+                ...get_centered_xy(id, modalConfig.width, modalConfig.height),
+                ...modalConfig.options
+            },
+            modalConfig.touchbar
+        );
+        
+        if (darwin) {
+            add_darwin_window_menu_handler(id);
+        }
+        
+        // Send initial data if provided
+        if (modalConfig.initialData) {
+            docs[id].modal.send(modalConfig.initialDataEvent || 'set_data', modalConfig.initialData);
+        }
+        
+        return docs[id].modal;
+    } catch (error) {
+        console.error('Error creating modal:', error);
+        // Restore the menu if modal creation fails
+        if (darwin && docs[id] && docs[id].menu) {
+            electron.Menu.setApplicationMenu(docs[id].menu);
+        }
+        return null;
+    }
+}
+
 electron.ipcMain.on("get_canvas_size", async (event, { id, columns, rows }) => {
-    docs[id].modal = await window.new_modal("app/html/resize.html", { width: 300, height: 190, parent: docs[id].win, frame: false, ...get_centered_xy(id, 300, 190) }, touchbar.get_canvas_size);
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("set_canvas_size", { columns, rows });
+    await createSafeModal(id, {
+        htmlPath: "app/html/resize.html",
+        width: 300,
+        height: 190,
+        touchbar: touchbar.get_canvas_size,
+        initialData: { columns, rows },
+        initialDataEvent: "set_canvas_size"
+    });
     event.returnValue = true;
 });
 
@@ -377,47 +433,51 @@ electron.ipcMain.on("discord", (event, { value }) => {
 });
 
 electron.ipcMain.on("show_rendering_modal", async (event, { id }) => {
-    docs[id].modal = await window.new_modal("app/html/rendering.html", { width: 200, height: 80, parent: docs[id].win, frame: false, ...get_centered_xy(id, 200, 80) });
-    if (darwin) add_darwin_window_menu_handler(id);
+    await createSafeModal(id, {
+        htmlPath: "app/html/rendering.html",
+        width: 200,
+        height: 80
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("show_connecting_modal", async (event, { id }) => {
-    docs[id].modal = await window.new_modal("app/html/connecting.html", { width: 200, height: 80, parent: docs[id].win, frame: false, ...get_centered_xy(id, 200, 80) });
-    if (darwin) add_darwin_window_menu_handler(id);
+    await createSafeModal(id, {
+        htmlPath: "app/html/connecting.html",
+        width: 200,
+        height: 80
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("close_modal", (event, { id }) => {
-    if (!id || !docs[id]) {
-        // If we don't have a valid ID or document reference, try to find the modal and close it
-        for (const docId in docs) {
-            if (docs[docId].modal && !docs[docId].modal.isDestroyed()) {
-                const mainWindow = docs[docId].win;
-                docs[docId].modal.close();
-                if (mainWindow && !mainWindow.isDestroyed()) {
+    // Find the document if id is not provided
+    let docId = id;
+    if (!docId || !docs[docId]) {
+        for (const dId in docs) {
+            if (docs[dId].modal && !docs[dId].modal.isDestroyed()) {
+                docId = dId;
+                break;
+            }
+        }
+    }
+
+    if (docId && docs[docId]) {
+        if (docs[docId].modal && !docs[docId].modal.isDestroyed()) {
+            const mainWindow = docs[docId].win;
+            docs[docId].modal.close();
+            
+            // Ensure menu restoration happens after modal is fully closed
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                // Small delay to ensure modal is fully closed
+                setTimeout(() => {
                     mainWindow.focus();
                     if (darwin) {
                         electron.Menu.setApplicationMenu(docs[docId].menu);
                     } else {
                         mainWindow.setMenu(docs[docId].menu);
                     }
-                }
-                break;
-            }
-        }
-        return;
-    }
-    
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        const mainWindow = docs[id].win;
-        docs[id].modal.close();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.focus();
-            if (darwin) {
-                electron.Menu.setApplicationMenu(docs[id].menu);
-            } else {
-                mainWindow.setMenu(docs[id].menu);
+                }, 100);
             }
         }
     }
@@ -446,14 +506,53 @@ electron.ipcMain.on("set_doc_menu", (event, { id }) => {
 });
 
 function add_darwin_window_menu_handler(id) {
-    docs[id].modal.on("close", () => electron.Menu.setApplicationMenu(docs[id].menu));
-    electron.Menu.setApplicationMenu(menu.modal_menu);
+    if (!darwin) return;
+
+    // Store the current menu to restore later
+    const previousMenu = docs[id].menu;
+    
+    // Remove any existing close handlers to prevent duplicates
+    docs[id].modal.removeAllListeners('close');
+    
+    // Add the close handler
+    docs[id].modal.on("close", () => {
+        // Small delay to ensure modal is fully closed
+        setTimeout(() => {
+            if (docs[id] && !docs[id].destroyed) {
+                // First try to restore the document's menu
+                if (docs[id].menu) {
+                    electron.Menu.setApplicationMenu(docs[id].menu);
+                } else if (previousMenu) {
+                    // Fall back to the stored previous menu
+                    electron.Menu.setApplicationMenu(previousMenu);
+                } else {
+                    // Last resort: set the default application menu
+                    menu.set_application_menu();
+                }
+            } else {
+                // If document is gone, set default application menu
+                menu.set_application_menu();
+            }
+        }, 100);
+    });
+
+    // Set the modal menu with a small delay to ensure it's applied
+    setTimeout(() => {
+        if (menu.modal_menu) {
+            electron.Menu.setApplicationMenu(menu.modal_menu);
+        }
+    }, 50);
 }
 
 electron.ipcMain.on("get_sauce_info", async (event, { id, title, author, group, comments }) => {
-    docs[id].modal = await window.new_modal("app/html/sauce.html", { width: 600, height: 340, parent: docs[id].win, frame: false, ...get_centered_xy(id, 350, 340) }, touchbar.get_sauce_info);
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("set_sauce_info", { title, author, group, comments });
+    await createSafeModal(id, {
+        htmlPath: "app/html/sauce.html",
+        width: 600,
+        height: 340,
+        touchbar: touchbar.get_sauce_info,
+        initialData: { title, author, group, comments },
+        initialDataEvent: "set_sauce_info"
+    });
     event.returnValue = true;
 });
 
@@ -470,28 +569,27 @@ function get_centered_xy(id, width, height) {
 }
 
 electron.ipcMain.on("select_attribute", async (event, { id, fg, bg, palette }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        docs[id].modal.close();
-        event.returnValue = true;
-        return;
-    }
-    docs[id].modal = await window.new_modal("app/html/select_attribute.html", { width: 340, height: 340, parent: docs[id].win, frame: false, ...get_centered_xy(id, 340, 340) }, touchbar.select_attribute);
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("select_attribute", { fg, bg, palette });
+    await createSafeModal(id, {
+        htmlPath: "app/html/select_attribute.html",
+        width: 340,
+        height: 340,
+        touchbar: touchbar.select_attribute,
+        initialData: { fg, bg, palette },
+        initialDataEvent: "select_attribute"
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("fkey_prefs", async (event, { id, num, fkey_index, current, bitmask, font_height }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        docs[id].modal.close();
-        event.returnValue = true;
-        return;
-    }
     const width = 16 * 8 * 2;
     const height = 16 * font_height * 2;
-    docs[id].modal = await window.new_modal("app/html/fkey_prefs.html", { width, height, parent: docs[id].win, frame: false, ...get_centered_xy(id, width, height) });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("fkey_prefs", { num, fkey_index, current, bitmask, font_height });
+    await createSafeModal(id, {
+        htmlPath: "app/html/fkey_prefs.html",
+        width,
+        height,
+        initialData: { num, fkey_index, current, bitmask, font_height },
+        initialDataEvent: "fkey_prefs"
+    });
     event.returnValue = true;
 });
 
@@ -511,25 +609,24 @@ electron.ipcMain.on("ready", async (event, { id }) => {
 });
 
 electron.ipcMain.on("show_controlcharacters", async (event, { id, method, destroy_when_done }) => {
-    docs[id].modal = await window.new_modal("app/html/controlcharacters.html", { width: 640, height: 400, parent: docs[id].win, frame: false, ...get_centered_xy(id, 640, 400) });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("get_save_data", { method, destroy_when_done });
+    await createSafeModal(id, {
+        htmlPath: "app/html/controlcharacters.html",
+        width: 640,
+        height: 400,
+        initialData: { method, destroy_when_done },
+        initialDataEvent: "get_save_data"
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("show_warning", async (event, { id, title, content }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        docs[id].modal.close();
-    }
-    docs[id].modal = await window.new_modal("app/html/warning.html", { 
-        width: 480, 
-        height: 200, 
-        parent: docs[id].win, 
-        frame: false,
-        ...get_centered_xy(id, 480, 200) 
+    await createSafeModal(id, {
+        htmlPath: "app/html/warning.html",
+        width: 480,
+        height: 200,
+        initialData: { title, content },
+        initialDataEvent: "get_warning_data"
     });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("get_warning_data", { title, content });
     event.returnValue = true;
 });
 
@@ -546,21 +643,18 @@ electron.ipcMain.on("warning_cancel", (event, { id }) => {
 });
 
 electron.ipcMain.on("show_loading_dialog", async (event, { id, title, message }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        docs[id].modal.close();
-    }
-    docs[id].modal = await window.new_modal("app/html/loading.html", { 
-        width: 300, 
-        height: 150, 
-        parent: docs[id].win, 
-        frame: false,
-        resizable: false,
-        minimizable: false,
-        maximizable: false,
-        ...get_centered_xy(id, 300, 150) 
+    await createSafeModal(id, {
+        htmlPath: "app/html/loading.html",
+        width: 300,
+        height: 150,
+        options: {
+            resizable: false,
+            minimizable: false,
+            maximizable: false
+        },
+        initialData: { title, message },
+        initialDataEvent: "set_loading_data"
     });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("set_loading_data", { title, message });
     event.returnValue = true;
 });
 
