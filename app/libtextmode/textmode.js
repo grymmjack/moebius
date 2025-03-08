@@ -275,4 +275,13 @@ function resize_canvas(doc, columns, rows) {
     }
 }
 
+function load_custom_font(file) {
+    try {
+        const bytes = fs.readFileSync(file);
+        return {bytes, filename: file};
+    } catch {
+        return undefined;
+    }
+}
+
 module.exports = {bytes_to_blocks, bytes_to_utf8, current_date, Textmode, add_sauce_for_ans, add_sauce_for_bin, add_sauce_for_xbin, resize_canvas};

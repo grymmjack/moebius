@@ -20,11 +20,12 @@ function set_var_px(name, value) {
     set_var(name, `${value}px`);
 }
 
-function open_reference_image({ file }) {
+function open_reference_image(params) {
+    let file = params?.file;
     if (!file) {
         const files = open_box({ filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }] });
-        if (files.length === 0) return;
-        file = files[0]
+        if (!files || files.length === 0) return;
+        file = files[0];
     }
 
     $("reference_image").src = electron.nativeImage.createFromPath(file).toDataURL();
@@ -229,8 +230,27 @@ function rescale_guide() {
 }
 
 function toggle_drawinggrid(visible, columns) {
-    $("guide").classList.add("hidden");
-    send("uncheck_all_guides");
+    if (visible === undefined) {
+        // Toggle current grid state
+        const grid = $("drawing_grid");
+        const isHidden = grid.classList.contains("hidden");
+        if (isHidden) {
+            // Always default to 1x1 grid when toggling on, unless a different grid was previously set
+            if (!grid_columns) {
+                grid_columns = 1;
+                rescale_drawinggrid();
+                send("check_drawinggrid_1x1");
+            } else {
+                send("check_drawinggrid_" + grid_columns + "x" + (grid_columns / 2));
+            }
+            grid.classList.remove("hidden");
+        } else {
+            grid.classList.add("hidden");
+            uncheck_all_grids();
+        }
+        return;
+    }
+
     if (visible) {
         grid_columns = columns;
         rescale_drawinggrid();
@@ -242,7 +262,17 @@ function toggle_drawinggrid(visible, columns) {
         }
     } else {
         $("drawing_grid").classList.add("hidden");
+        uncheck_all_grids();
     }
+}
+
+function uncheck_all_grids() {
+    send("uncheck_drawinggrid_1x1");
+    send("uncheck_drawinggrid_4x2");
+    send("uncheck_drawinggrid_6x3");
+    send("uncheck_drawinggrid_8x4");
+    send("uncheck_drawinggrid_12x6");
+    send("uncheck_drawinggrid_16x8");
 }
 
 function rescale_drawinggrid() {
@@ -272,12 +302,34 @@ function rescale_drawinggrid() {
     }
 }
 
+function toggle_guide() {
+    const guide = $("guide");
+    if (guide.classList.contains("hidden")) {
+        // If no guide type was previously set, default to Smallscale guide
+        if (!guide_columns || !guide_rows) {
+            guide_columns = 80;
+            guide_rows = 25;
+            rescale_guide();
+            send("check_smallscale_guide");
+        }
+        guide.classList.remove("hidden");
+    } else {
+        guide.classList.add("hidden");
+        send("uncheck_all_guides");
+    }
+}
+
 on("toggle_smallscale_guide", (event, visible) => toggle_smallscale_guide(visible));
 on("toggle_square_guide", (event, visible) => toggle_square_guide(visible));
 on("toggle_instagram_guide", (event, visible) => toggle_instagram_guide(visible));
 on("toggle_file_id_guide", (event, visible) => toggle_file_id_guide(visible));
 on("toggle_petscii_guide", (event, visible) => toggle_petscii_guide(visible));
 on("toggle_drawinggrid", (event, visible, columns) => toggle_drawinggrid(visible, columns));
+
+// Add keyboard grid toggle handler
+keyboard.on("toggle_grid", () => toggle_drawinggrid());
+// Add keyboard guide toggle handler
+keyboard.on("toggle_guide", () => toggle_guide());
 
 doc.on("render", () => rescale_guide());
 doc.on("render", () => rescale_drawinggrid());

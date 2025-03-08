@@ -74,7 +74,9 @@ function key_down(event) {
         case "Escape":
         case "Enter":
         case "NumpadEnter":
-            send("close_modal");
+            event.preventDefault();
+            event.stopPropagation();
+            send("close_modal", {});
             break;
     }
 }
@@ -88,7 +90,7 @@ function mouse_down(event) {
         fg = y;
         send_parent("set_fg", fg);
         update_canvas();
-        setTimeout(() => send("close_modal"), 50);
+        setTimeout(() => send("close_modal", {}), 50);
     }
     if (Math.floor((event.clientY - 10) / 20) == fg) {
         let x = Math.floor(event.clientX / 20);
@@ -98,13 +100,15 @@ function mouse_down(event) {
         bg = x;
         send_parent("set_bg", bg);
         update_canvas();
-        setTimeout(() => send("close_modal"), 50);
+        setTimeout(() => send("close_modal", {}), 50);
     }
 }
 
 document.addEventListener("DOMContentLoaded", (event) => {
+    const cleanup = () => document.removeEventListener("keydown", key_down, true);
     document.addEventListener("keydown", key_down, true);
     document.addEventListener("mousedown", mouse_down, true);
+    window.addEventListener("unload", cleanup);
 }, true);
 
 electron.ipcRenderer.on("select_attribute", (event, opts) => {
@@ -116,4 +120,4 @@ on("previous_foreground_color", (event) => previous_foreground_color());
 on("next_foreground_color", (event) => next_foreground_color());
 on("previous_background_color", (event) => previous_background_color());
 on("next_background_color", (event) => next_background_color());
-on("cancel", (event) => send("close_modal"));
+on("cancel", (event) => send("close_modal", {}));

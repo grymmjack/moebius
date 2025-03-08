@@ -4,6 +4,7 @@ const window = require("./window");
 const menu = require("./menu");
 const touchbar = require("./touchbar");
 const path = require("path");
+const fs = require('fs');
 const docs = {};
 let last_win_pos;
 const darwin = (process.platform == "darwin");
@@ -19,7 +20,7 @@ const {new_win} = require("./window");
 // picker, which is nicer than the one that's provided by chromium. At some
 // time in the future, this may no longer be true, in which case it would be
 // fine to remove this line if it causes other issues with forms.
-electron.app.commandLine.appendSwitch('disable-features', 'FormControlsRefresh')
+electron.app.commandLine.appendSwitch('disable-features', 'FormControlsRefresh');
 
 function cleanup(id) {
     menu.cleanup(id);
@@ -76,6 +77,36 @@ async function new_document({ columns, rows, title, author, group, date, palette
     win.send("new_document", { columns, rows, title, author, group, date, palette, font_name, use_9px_font, ice_colors, comments, data, font_bytes });
 }
 
+// Function to add a file to the recent files list in preferences
+function add_to_recent_files(file) {
+    let recent_files = prefs.get("recent_files");
+    if (!Array.isArray(recent_files)) {
+        recent_files = [];
+    }
+    
+    const file_index = recent_files.indexOf(file);
+    if (file_index !== -1) {
+        recent_files.splice(file_index, 1);
+    }
+    
+    recent_files.unshift(file);
+    
+    if (recent_files.length > 10) {
+        recent_files.pop();
+    }
+    
+    prefs.set("recent_files", recent_files);
+    
+    for (const id of Object.keys(docs)) {
+        docs[id].menu = menu.document_menu(docs[id].win, prefs.get("debug"));
+        if (!darwin) {
+            docs[id].win.setMenu(docs[id].menu);
+        }
+    }
+    
+    menu.set_application_menu();
+}
+
 function set_file(id, file) {
     docs[id].file = file;
     docs[id].win.setRepresentedFilename(file);
@@ -83,6 +114,7 @@ function set_file(id, file) {
     docs[id].win.setDocumentEdited(false);
     docs[id].edited = false;
     electron.app.addRecentDocument(file);
+    add_to_recent_files(file);
 }
 
 electron.ipcMain.on("set_file", (event, { id, file }) => set_file(id, file));
@@ -137,6 +169,73 @@ menu.on("open_in_current_window", (win) => {
     open(win);
 });
 
+// Open a file from the recent files list
+menu.on("open_recent_file", ({ win, file }) => {
+    console.log("Opening recent file:", file);
+    console.log("Win provided:", !!win);
+    
+    const fs = require("fs");
+    // Check if file exists
+    if (fs.existsSync(file)) {
+        console.log("File exists");
+        
+        if (win && !check_if_file_is_already_open(file) && !open_in_new_window(win)) {
+            console.log("Opening in existing window");
+            win.send("open_file", file);
+            docs[win.id].file = file;
+        } else {
+            console.log("Opening in new window");
+            open_file(file);
+        }
+    } else {
+        console.log("File does not exist:", file);
+        
+        // If file doesn't exist, show an error and remove it from the recent files list
+        let recent_files = prefs.get("recent_files");
+        if (!Array.isArray(recent_files)) {
+            recent_files = [];
+        }
+        
+        const file_index = recent_files.indexOf(file);
+        if (file_index !== -1) {
+            recent_files.splice(file_index, 1);
+            prefs.set("recent_files", recent_files);
+            
+            // Rebuild menus
+            for (const id of Object.keys(docs)) {
+                docs[id].menu = menu.document_menu(docs[id].win, prefs.get("debug"));
+                if (!darwin) {
+                    docs[id].win.setMenu(docs[id].menu);
+                }
+            }
+            menu.set_application_menu();
+        }
+        
+        // Show error dialog
+        electron.dialog.showMessageBoxSync({
+            type: "error",
+            title: "File Not Found",
+            message: `The file "${file}" could not be found.`,
+            detail: "It may have been moved, renamed, or deleted.",
+            buttons: ["OK"]
+        });
+    }
+});
+
+// Clear the recent files list
+menu.on("clear_recent_files", () => {
+    prefs.set("recent_files", []);
+    
+    // Rebuild menus
+    for (const id of Object.keys(docs)) {
+        docs[id].menu = menu.document_menu(docs[id].win, prefs.get("debug"));
+        if (!darwin) {
+            docs[id].win.setMenu(docs[id].menu);
+        }
+    }
+    menu.set_application_menu();
+});
+
 async function preferences() {
     const preferences = await window.static("app/html/preferences.html", { width: 480, height: 690 });
     preferences.send("prefs", prefs.get_all());
@@ -156,7 +255,7 @@ async function open_reference_window(win) {
 
     if (!files) return;
     for (const file of files) {
-        let reference = await new_win(
+        let reference = await window.new_win(
             file,
             {
                 width: 480,
@@ -166,7 +265,40 @@ async function open_reference_window(win) {
                 minimizable: false,
                 fullscreenable: false,
                 resizable: true,
+                alwaysOnTop: false
             });
+            
+        // Store initial relative position
+        const refPos = reference.getPosition();
+        const parentPos = win.getPosition();
+        let relativePosition = {
+            x: refPos[0] - parentPos[0],
+            y: refPos[1] - parentPos[1]
+        };
+        
+        // Update reference window position when parent moves
+        win.on('move', () => {
+            const parentPos = win.getPosition();
+            reference.setPosition(
+                parentPos[0] + relativePosition.x,
+                parentPos[1] + relativePosition.y
+            );
+        });
+        
+        // Update relative position when reference window is moved
+        reference.on('move', () => {
+            const refPos = reference.getPosition();
+            const parentPos = win.getPosition();
+            relativePosition = {
+                x: refPos[0] - parentPos[0],
+                y: refPos[1] - parentPos[1]
+            };
+        });
+        
+        // Clean up event listeners when reference window is closed
+        reference.on('closed', () => {
+            win.removeAllListeners('move');
+        });
     }
 }
 menu.on("open_reference_window", open_reference_window);
@@ -209,10 +341,66 @@ function has_documents_open() {
     return Object.keys(docs).length > 0;
 }
 
+// Helper function to safely create and show modals
+async function createSafeModal(id, modalConfig) {
+    if (!docs[id]) {
+        console.error('Document not found:', id);
+        return null;
+    }
+
+    // If there's an existing modal, close it properly first
+    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
+        const currentModal = docs[id].modal;
+        docs[id].modal = null; // Clear the reference first
+        currentModal.close();
+        // Wait a brief moment to ensure cleanup
+        await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    
+    try {
+        // Create the new modal with the specified dimensions
+        docs[id].modal = await window.new_modal(
+            modalConfig.htmlPath,
+            {
+                width: modalConfig.width,
+                height: modalConfig.height,
+                parent: docs[id].win,
+                frame: false,
+                ...get_centered_xy(id, modalConfig.width, modalConfig.height),
+                ...modalConfig.options
+            },
+            modalConfig.touchbar
+        );
+        
+        if (darwin) {
+            add_darwin_window_menu_handler(id);
+        }
+        
+        // Send initial data if provided
+        if (modalConfig.initialData) {
+            docs[id].modal.send(modalConfig.initialDataEvent || 'set_data', modalConfig.initialData);
+        }
+        
+        return docs[id].modal;
+    } catch (error) {
+        console.error('Error creating modal:', error);
+        // Restore the menu if modal creation fails
+        if (darwin && docs[id] && docs[id].menu) {
+            electron.Menu.setApplicationMenu(docs[id].menu);
+        }
+        return null;
+    }
+}
+
 electron.ipcMain.on("get_canvas_size", async (event, { id, columns, rows }) => {
-    docs[id].modal = await window.new_modal("app/html/resize.html", { width: 300, height: 190, parent: docs[id].win, frame: false, ...get_centered_xy(id, 300, 190) }, touchbar.get_canvas_size);
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("set_canvas_size", { columns, rows });
+    await createSafeModal(id, {
+        htmlPath: "app/html/resize.html",
+        width: 300,
+        height: 190,
+        touchbar: touchbar.get_canvas_size,
+        initialData: { columns, rows },
+        initialDataEvent: "set_canvas_size"
+    });
     event.returnValue = true;
 });
 
@@ -245,19 +433,54 @@ electron.ipcMain.on("discord", (event, { value }) => {
 });
 
 electron.ipcMain.on("show_rendering_modal", async (event, { id }) => {
-    docs[id].modal = await window.new_modal("app/html/rendering.html", { width: 200, height: 80, parent: docs[id].win, frame: false, ...get_centered_xy(id, 200, 80) });
-    if (darwin) add_darwin_window_menu_handler(id);
+    await createSafeModal(id, {
+        htmlPath: "app/html/rendering.html",
+        width: 200,
+        height: 80
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("show_connecting_modal", async (event, { id }) => {
-    docs[id].modal = await window.new_modal("app/html/connecting.html", { width: 200, height: 80, parent: docs[id].win, frame: false, ...get_centered_xy(id, 200, 80) });
-    if (darwin) add_darwin_window_menu_handler(id);
+    await createSafeModal(id, {
+        htmlPath: "app/html/connecting.html",
+        width: 200,
+        height: 80
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("close_modal", (event, { id }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) docs[id].modal.close();
+    // Find the document if id is not provided
+    let docId = id;
+    if (!docId || !docs[docId]) {
+        for (const dId in docs) {
+            if (docs[dId].modal && !docs[dId].modal.isDestroyed()) {
+                docId = dId;
+                break;
+            }
+        }
+    }
+
+    if (docId && docs[docId]) {
+        if (docs[docId].modal && !docs[docId].modal.isDestroyed()) {
+            const mainWindow = docs[docId].win;
+            docs[docId].modal.close();
+            
+            // Ensure menu restoration happens after modal is fully closed
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                // Small delay to ensure modal is fully closed
+                setTimeout(() => {
+                    mainWindow.focus();
+                    if (darwin) {
+                        electron.Menu.setApplicationMenu(docs[docId].menu);
+                    } else {
+                        mainWindow.setMenu(docs[docId].menu);
+                    }
+                }, 100);
+            }
+        }
+    }
 });
 
 electron.ipcMain.on("chat_input_focus", (event, { id }) => {
@@ -283,14 +506,53 @@ electron.ipcMain.on("set_doc_menu", (event, { id }) => {
 });
 
 function add_darwin_window_menu_handler(id) {
-    docs[id].modal.on("close", () => electron.Menu.setApplicationMenu(docs[id].menu));
-    electron.Menu.setApplicationMenu(menu.modal_menu);
+    if (!darwin) return;
+
+    // Store the current menu to restore later
+    const previousMenu = docs[id].menu;
+    
+    // Remove any existing close handlers to prevent duplicates
+    docs[id].modal.removeAllListeners('close');
+    
+    // Add the close handler
+    docs[id].modal.on("close", () => {
+        // Small delay to ensure modal is fully closed
+        setTimeout(() => {
+            if (docs[id] && !docs[id].destroyed) {
+                // First try to restore the document's menu
+                if (docs[id].menu) {
+                    electron.Menu.setApplicationMenu(docs[id].menu);
+                } else if (previousMenu) {
+                    // Fall back to the stored previous menu
+                    electron.Menu.setApplicationMenu(previousMenu);
+                } else {
+                    // Last resort: set the default application menu
+                    menu.set_application_menu();
+                }
+            } else {
+                // If document is gone, set default application menu
+                menu.set_application_menu();
+            }
+        }, 100);
+    });
+
+    // Set the modal menu with a small delay to ensure it's applied
+    setTimeout(() => {
+        if (menu.modal_menu) {
+            electron.Menu.setApplicationMenu(menu.modal_menu);
+        }
+    }, 50);
 }
 
 electron.ipcMain.on("get_sauce_info", async (event, { id, title, author, group, comments }) => {
-    docs[id].modal = await window.new_modal("app/html/sauce.html", { width: 600, height: 340, parent: docs[id].win, frame: false, ...get_centered_xy(id, 350, 340) }, touchbar.get_sauce_info);
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("set_sauce_info", { title, author, group, comments });
+    await createSafeModal(id, {
+        htmlPath: "app/html/sauce.html",
+        width: 600,
+        height: 340,
+        touchbar: touchbar.get_sauce_info,
+        initialData: { title, author, group, comments },
+        initialDataEvent: "set_sauce_info"
+    });
     event.returnValue = true;
 });
 
@@ -307,28 +569,27 @@ function get_centered_xy(id, width, height) {
 }
 
 electron.ipcMain.on("select_attribute", async (event, { id, fg, bg, palette }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        docs[id].modal.close();
-        event.returnValue = true;
-        return;
-    }
-    docs[id].modal = await window.new_modal("app/html/select_attribute.html", { width: 340, height: 340, parent: docs[id].win, frame: false, ...get_centered_xy(id, 340, 340) }, touchbar.select_attribute);
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("select_attribute", { fg, bg, palette });
+    await createSafeModal(id, {
+        htmlPath: "app/html/select_attribute.html",
+        width: 340,
+        height: 340,
+        touchbar: touchbar.select_attribute,
+        initialData: { fg, bg, palette },
+        initialDataEvent: "select_attribute"
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("fkey_prefs", async (event, { id, num, fkey_index, current, bitmask, font_height }) => {
-    if (docs[id].modal && !docs[id].modal.isDestroyed()) {
-        docs[id].modal.close();
-        event.returnValue = true;
-        return;
-    }
     const width = 16 * 8 * 2;
     const height = 16 * font_height * 2;
-    docs[id].modal = await window.new_modal("app/html/fkey_prefs.html", { width, height, parent: docs[id].win, frame: false, ...get_centered_xy(id, width, height) });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("fkey_prefs", { num, fkey_index, current, bitmask, font_height });
+    await createSafeModal(id, {
+        htmlPath: "app/html/fkey_prefs.html",
+        width,
+        height,
+        initialData: { num, fkey_index, current, bitmask, font_height },
+        initialDataEvent: "fkey_prefs"
+    });
     event.returnValue = true;
 });
 
@@ -348,17 +609,66 @@ electron.ipcMain.on("ready", async (event, { id }) => {
 });
 
 electron.ipcMain.on("show_controlcharacters", async (event, { id, method, destroy_when_done }) => {
-    docs[id].modal = await window.new_modal("app/html/controlcharacters.html", { width: 640, height: 400, parent: docs[id].win, frame: false, ...get_centered_xy(id, 640, 400) });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("get_save_data", { method, destroy_when_done });
+    await createSafeModal(id, {
+        htmlPath: "app/html/controlcharacters.html",
+        width: 640,
+        height: 400,
+        initialData: { method, destroy_when_done },
+        initialDataEvent: "get_save_data"
+    });
     event.returnValue = true;
 });
 
 electron.ipcMain.on("show_warning", async (event, { id, title, content }) => {
-    docs[id].modal = await window.new_modal("app/html/warning.html", { width: 480, height: 200, parent: docs[id].win, frame: false, ...get_centered_xy(id, 480, 200) });
-    if (darwin) add_darwin_window_menu_handler(id);
-    docs[id].modal.send("get_warning_data", { title, content })
+    await createSafeModal(id, {
+        htmlPath: "app/html/warning.html",
+        width: 480,
+        height: 200,
+        initialData: { title, content },
+        initialDataEvent: "get_warning_data"
+    });
     event.returnValue = true;
+});
+
+electron.ipcMain.on("warning_ok", (event, { id }) => {
+    if (docs[id] && docs[id].win && !docs[id].win.isDestroyed()) {
+        docs[id].win.send("warning_ok");
+    }
+});
+
+electron.ipcMain.on("warning_cancel", (event, { id }) => {
+    if (docs[id] && docs[id].win && !docs[id].win.isDestroyed()) {
+        docs[id].win.send("warning_cancel");
+    }
+});
+
+electron.ipcMain.on("show_loading_dialog", async (event, { id, title, message }) => {
+    await createSafeModal(id, {
+        htmlPath: "app/html/loading.html",
+        width: 300,
+        height: 150,
+        options: {
+            resizable: false,
+            minimizable: false,
+            maximizable: false
+        },
+        initialData: { title, message },
+        initialDataEvent: "set_loading_data"
+    });
+    event.returnValue = true;
+});
+
+electron.ipcMain.on("open_reference_image", async (event, { id }) => {
+    const files = electron.dialog.showOpenDialogSync(docs[event.sender.id].win, {
+        filters: [{
+            name: "Images",
+            extensions: ["png", "jpg", "jpeg"]
+        }],
+        properties: ["openFile"]
+    });
+
+    if (!files) return;
+    event.sender.send("set_reference_image", { file: files[0] });
 });
 
 if (darwin) {
@@ -408,3 +718,7 @@ if (darwin) {
 }
 
 // if (linux) electron.app.disableHardwareAcceleration();
+
+electron.ipcMain.on('renderer-log', (event, {type, message}) => {
+    // Removed logging
+});

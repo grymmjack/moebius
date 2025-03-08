@@ -3,6 +3,7 @@ const { on, send, send_sync, open_box} = require("../senders");
 const events = require("events");
 const chat = require("./ui/chat");
 const path = require("path");
+const fs = require("fs");
 let doc, render;
 const actions = { CONNECTED: 0, REFUSED: 1, JOIN: 2, LEAVE: 3, CURSOR: 4, SELECTION: 5, RESIZE_SELECTION: 6, OPERATION: 7, HIDE_CURSOR: 8, DRAW: 9, CHAT: 10, STATUS: 11, SAUCE: 12, ICE_COLORS: 13, USE_9PX_FONT: 14, CHANGE_FONT: 15, SET_CANVAS_SIZE: 16, PASTE_AS_SELECTION: 17, ROTATE: 18, FLIP_X: 19, FLIP_Y: 20, SET_BG: 21, CHANGE_PALETTE: 22 };
 const statuses = { ACTIVE: 0, IDLE: 1, AWAY: 2, WEB: 3 };
@@ -1158,7 +1159,8 @@ class TextModeDoc extends events.EventEmitter {
         this.start_rendering().then(() => this.emit("change_font", doc.font_name));
     }
 
-    async load_custom_font({ file }) {
+    async load_custom_font(options = {}) {
+        let file = options.file;
         if (!file) {
             const files = open_box({
                 filters: [{
@@ -1171,15 +1173,25 @@ class TextModeDoc extends events.EventEmitter {
                     ]
                 }]
             });
-            if (files.length === 0) return;
-            file = files[0]
+            if (!files || files.length === 0) return;
+            file = files[0];
         }
 
-        const { bytes, filename } = await libtextmode.load_custom_font(file);
-        console.log(bytes, filename)
-        doc.font_name = path.parse(filename).name;
-        doc.font_bytes = bytes;
-        this.start_rendering().then(() => this.emit("change_font", doc.font_name));
+        // Show loading dialog
+        const id = send_sync("show_loading_dialog", { title: "Loading Custom Font", message: "Please wait while the font is being loaded..." });
+
+        try {
+            const { bytes, filename } = await libtextmode.load_custom_font(file);
+            doc.font_name = path.parse(filename).name;
+            doc.font_bytes = bytes;
+            await this.start_rendering();
+            this.emit("change_font", doc.font_name);
+        } catch (error) {
+            send("show_warning", { title: "Font Loading Error", content: `Failed to load font: ${error.message || error}` });
+        } finally {
+            // Hide loading dialog
+            send("close_modal", { id });
+        }
     }
 
     constructor() {
@@ -1201,6 +1213,11 @@ class TextModeDoc extends events.EventEmitter {
         on("mirror_mode", (event, value) => this.mirror_mode = value);
         chat.on("goto_row", (line_no) => this.emit("goto_row", line_no));
     }
+}
+
+function save_file(bytes, filename) {
+    fs.writeFileSync(filename, bytes);
+    add_to_recent_files(filename);
 }
 
 module.exports = new TextModeDoc();
